@@ -7,6 +7,7 @@
     "clients": "Clients",
     "financials": "Financials",
     "settings": "Settings",
+    "logout": "Logout",
     "subtitle": "Premium Catering SaaS"
   },
   "Dashboard": {
@@ -267,5 +268,53 @@
     "language": "Language",
     "english": "English",
     "spanish": "Spanish"
+  },
+  "Auth": {
+    "login": {
+      "title": "Log in to CaterFlow",
+      "description": "Enter your details below to manage your catering operations.",
+      "email": "Email Address",
+      "email_placeholder": "name@company.com",
+      "password": "Password",
+      "password_placeholder": "Enter your password",
+      "forgot_password": "Forgot Password?",
+      "submit": "Sign In",
+      "google": "Sign in with Google",
+      "no_account": "Don't have an account?",
+      "contact_admin": "Contact Admin"
+    },
+    "signup": {
+      "title": "Create your account",
+      "description": "Let's get started with your personal details to set up your workspace.",
+      "step1_title": "User Details",
+      "step2_title": "Business Details",
+      "step_count": "Step {current} of {total}",
+      "full_name": "Full Name",
+      "full_name_placeholder": "e.g. Sarah Mitchell",
+      "email": "Work Email",
+      "password": "Password",
+      "password_hint": "Must be at least 8 characters",
+      "continue": "Continue to Business Details",
+      "already_account": "Already have an account?",
+      "signin": "Sign In",
+      "business_title": "Tell us about your business",
+      "business_description": "Set your operational defaults to get started. You can update these settings later in your dashboard.",
+      "business_name": "Business Name",
+      "business_name_placeholder": "e.g. My Catering Co.",
+      "currency": "Default Currency",
+      "currency_hint": "Used for financial reports.",
+      "language": "Platform Language",
+      "language_hint": "Controls UI text language.",
+      "terms": "By completing setup, you agree to our {terms}. Your business currency cannot be changed after the first transaction.",
+      "terms_label": "Terms of Service",
+      "complete": "Complete Setup",
+      "back": "Back to Account Details"
+    },
+    "forgot": {
+      "title": "Forgot Password?",
+      "description": "No worries, we'll send you reset instructions.",
+      "submit": "Send Reset Link",
+      "back": "Back to Login"
+    }
   }
 }
