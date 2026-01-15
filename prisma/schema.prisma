@@ -1,0 +1,120 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Organization {
+  id          String       @id @default(uuid())
+  name        String
+  // --- Ajustes para CaterFlow ---
+  currency    String       @default("USD") // USD, NIO, MXN
+  language    String       @default("es")  // es, en
+  logoUrl     String?      // Para los presupuestos PDF
+  // ------------------------------
+  users       User[]
+  ingredients Ingredient[]
+  recipes     Recipe[]
+  events      Event[]
+  clients     Client[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model User {
+  id             String       @id // IMPORTANTE: Sin @default(uuid), usaremos el ID de Supabase Auth
+  email          String       @unique
+  role           String       @default("ADMIN") // ADMIN, STAFF
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Ingredient {
+  id             String           @id @default(uuid())
+  name           String
+  unit           String           // kg, g, l, units
+  cost           Float            // Cost per unit
+  stock          Float            @default(0)
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  recipes        RecipeIngredient[]
+  priceHistory   PriceHistory[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model Recipe {
+  id             String           @id @default(uuid())
+  name           String
+  description    String?
+  margin         Float            @default(0.3) // 30% default
+  totalCost      Float            @default(0)   // Calculated
+  price          Float            @default(0)   // Calculated based on margin
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  ingredients    RecipeIngredient[]
+  events         EventRecipe[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model RecipeIngredient {
+  id           String     @id @default(uuid())
+  recipeId     String
+  ingredientId String
+  quantity     Float
+  recipe       Recipe     @relation(fields: [recipeId], references: [id])
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@unique([recipeId, ingredientId])
+}
+
+model Event {
+  id             String        @id @default(uuid())
+  name           String
+  date           DateTime
+  clientId       String
+  client         Client        @relation(fields: [clientId], references: [id])
+  recipes        EventRecipe[]
+  status         String        @default("DRAFT") // DRAFT, CONFIRMED, COMPLETED
+  totalPrice     Float
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model EventRecipe {
+  id       String @id @default(uuid())
+  eventId  String
+  recipeId String
+  servings Int    @default(1)
+  event    Event  @relation(fields: [eventId], references: [id])
+  recipe   Recipe @relation(fields: [recipeId], references: [id])
+}
+
+model Client {
+  id             String       @id @default(uuid())
+  name           String
+  email          String
+  phone          String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  events         Event[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model PriceHistory {
+  id           String     @id @default(uuid())
+  ingredientId String
+  oldCost      Float
+  newCost      Float
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  createdAt    DateTime   @default(now())
+}

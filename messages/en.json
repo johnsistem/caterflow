@@ -1,0 +1,271 @@
+{
+  "Sidebar": {
+    "dashboard": "Dashboard",
+    "inventory": "Inventory",
+    "recipes": "Recipes",
+    "events": "Events",
+    "clients": "Clients",
+    "financials": "Financials",
+    "settings": "Settings",
+    "subtitle": "Premium Catering SaaS"
+  },
+  "Dashboard": {
+    "title": "Financial Overview",
+    "description": "Real-time performance and market metrics.",
+    "kpis": {
+      "monthly_revenue": "Monthly Revenue",
+      "avg_margin": "Avg. Margin",
+      "pending_quotes": "Pending Quotes",
+      "due_today": "due today"
+    },
+    "quotes": {
+      "title": "Current Quotes",
+      "new_button": "New Quote",
+      "search_placeholder": "Search client or ID...",
+      "status_placeholder": "Status",
+      "statuses": {
+        "all": "All",
+        "pending": "Pending",
+        "approved": "Approved",
+        "draft": "Draft"
+      },
+      "table": {
+        "client": "Client/ID",
+        "date": "Date",
+        "headcount": "Headcount",
+        "total": "Total",
+        "margin": "Margin",
+        "status": "Status"
+      },
+      "pagination": "Showing {start} to {end} of {total} entries",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "market": {
+      "title": "Market Watch",
+      "updated": "Live update",
+      "alerts_title": "Cost Alerts",
+      "watchlist_title": "Ingredient Watchlist",
+      "view_report": "View Report",
+      "alerts": {
+        "beef": {
+          "title": "Beef Tenderloin",
+          "subtitle": "+$2 Hike Today",
+          "description": "Supplier notified of shortage due to regional transport delays."
+        },
+        "eggs": {
+          "title": "Anecokes (Hess)",
+          "subtitle": "+45% Seasonal Variance",
+          "description": "Prices expected to surge until next shipment on Friday."
+        },
+        "seafood": {
+          "title": "Seafood Market Status",
+          "description": "Salmon prices have stabilized after last week's spike."
+        }
+      },
+      "ingredients": {
+        "cream": "Heavy Cream",
+        "chicken": "Chicken Breast",
+        "truffle": "Truffle Oil"
+      }
+    }
+  },
+  "Inventory": {
+    "title": "Ingredient Inventory",
+    "description": "Manage your stock levels and ingredient pricing.",
+    "import": "Import",
+    "add_button": "Add Item",
+    "search_placeholder": "Search by Name, SKU, or Category...",
+    "filter": "Filter by Category",
+    "all_categories": "All Categories",
+    "categories": {
+      "meat": "Meat",
+      "dairy": "Dairy",
+      "veggie": "Veggie",
+      "spice": "Spice"
+    },
+    "more": "More Filters",
+    "bulk_update": "Bulk Update",
+    "table": {
+      "ingredient": "Ingredient",
+      "category": "Category",
+      "unit": "Unit",
+      "price": "Price",
+      "trend": "Trend (7d)",
+      "updated": "Last Update",
+      "action": "Action",
+      "edit": "Edit"
+    },
+    "pagination": "Showing {start} to {end} of {total} results",
+    "items": {
+      "angus": "Angus Beef Brisket",
+      "milk": "Whole Milk",
+      "lettuce": "Romaine Lettuce",
+      "chicken": "Chicken Breast",
+      "cheese": "Cheddar Cheese",
+      "saffron": "Saffron",
+      "times": {
+        "hrs": "{count} hrs ago",
+        "days": "{count} days ago",
+        "day": "1 day ago"
+      }
+    }
+  },
+  "Recipes": {
+    "title": "Recipe Costing & Margin Builder",
+    "description": "Create recipes and calculate real-time profitability.",
+    "save": "Save Recipe",
+    "cancel": "Cancel",
+    "library": "Ingredient Library",
+    "search": "Search ingredients",
+    "composition": "Recipe Composition",
+    "breadcrumb": {
+      "home": "Home",
+      "recipes": "Recipes",
+      "new": "New Recipe"
+    },
+    "table": {
+      "ingredient": "Ingredient",
+      "quantity": "Qty",
+      "unit": "Unit",
+      "cost_unit": "Unit Cost",
+      "total": "Amount",
+      "action": "Action"
+    },
+    "financials": {
+      "total_cost": "Total Production Cost",
+      "suggested_price": "Target Sale Price",
+      "cost_portion": "Cost Per Portion",
+      "suggested_price_3x": "Suggested Price (3x)",
+      "price_portion": "Price Per Portion",
+      "margin": "Margin",
+      "view_sheet": "View Production Sheet"
+    },
+    "categories": {
+      "main": "Main Course",
+      "appetizer": "Appetizer",
+      "dessert": "Dessert",
+      "beverage": "Beverage"
+    },
+    "form": {
+      "name": "Recipe Name",
+      "category": "Category",
+      "yield": "Yield (Portions)",
+      "clear": "Clear all",
+      "supplier": "Supplier"
+    }
+  },
+  "Events": {
+    "title": "Event Details",
+    "tabs": {
+      "all": "All Items",
+      "apps": "Appetizers",
+      "mains": "Mains",
+      "sides": "Sides",
+      "beverages": "Beverages"
+    },
+    "kpis": {
+      "draft": "Draft",
+      "sent": "Sent",
+      "confirmed": "Confirmed"
+    },
+    "client_label": "Client",
+    "guest_count": "Guest Count",
+    "services": "Services & Menus",
+    "add_item": "Add Item",
+    "preview": "Live Preview",
+    "quote_header": "QUOTE",
+    "bill_to": "Prepared For",
+    "event_date": "Event Date",
+    "table": {
+      "description": "Description",
+      "qty": "QTY",
+      "price": "Price",
+      "amount": "Total",
+      "empty": "No items added to quote yet."
+    },
+    "financials": {
+      "subtotal": "Subtotal",
+      "service_fee": "Service Fee (18%)",
+      "tax": "Tax (8.5%)",
+      "total": "Grand Total"
+    },
+    "actions": {
+      "send": "Send Quote to Client",
+      "last_saved": "Last saved: Just now",
+      "browse_catalog": "Browse Catalog for More Items",
+      "issued": "Issued"
+    },
+    "navigation": {
+      "dashboard": "Dashboard",
+      "events": "Events",
+      "calendar": "Calendar",
+      "clients": "Clients"
+    },
+    "demo": {
+      "wedding": "Smith Wedding Reception",
+      "upcoming": "Upcoming",
+      "sarah_john": "Sarah & John Smith"
+    }
+  },
+  "Clients": {
+    "title": "Client Directory",
+    "description": "Manage your client base, view history, and track revenue.",
+    "add_button": "Add Client",
+    "search_placeholder": "Search by Name, Email, or Phone...",
+    "filters": {
+      "all": "All",
+      "vip": "VIP",
+      "corporate": "Corporate",
+      "institutional": "Institutional",
+      "private": "Private Event"
+    },
+    "types": {
+      "corporate": "Corporate",
+      "private": "Private Event",
+      "vip": "VIP",
+      "institutional": "Institutional"
+    },
+    "table_header": {
+      "spent": "TOTAL SPENT"
+    },
+    "pagination": "Showing {start} to {end} of {total} entries",
+    "details": {
+      "email": "Email",
+      "call": "Call",
+      "ltv": "Lifetime Value",
+      "outstanding": "Outstanding",
+      "recent_events": "Recent Events",
+      "view_all": "View All",
+      "guests": "{count} Guests",
+      "notes": "Notes",
+      "create_quote": "Create New Quote",
+      "empty_selection": "Select a client to view details"
+    }
+  },
+  "Financials": {
+    "title": "Financial Analytics",
+    "description": "Track revenue, costs, and profitability metrics.",
+    "revenue": "Total Revenue",
+    "profit": "Net Profit",
+    "margin": "Average Margin",
+    "vs_last_month": "vs last month",
+    "revenue_vs_profit": {
+      "title": "Revenue vs. Profit",
+      "description": "Comparative analysis of income against net profit over time."
+    },
+    "top_recipes": {
+      "title": "Top 5 Profitable Recipes",
+      "description": "Best profit margin menu items."
+    },
+    "event_volume": {
+      "title": "Monthly Event Volume",
+      "description": "Number of catered events per month."
+    }
+  },
+  "Common": {
+    "language": "Language",
+    "english": "English",
+    "spanish": "Spanish"
+  }
+}

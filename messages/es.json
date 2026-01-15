@@ -1,0 +1,271 @@
+{
+  "Sidebar": {
+    "dashboard": "Panel de Control",
+    "inventory": "Inventario",
+    "recipes": "Recetas",
+    "events": "Eventos",
+    "clients": "Clientes",
+    "financials": "Finanzas",
+    "settings": "Ajustes",
+    "subtitle": "SaaS de Catering Premium"
+  },
+  "Dashboard": {
+    "title": "Vista General Financiera",
+    "description": "Rendimiento en tiempo real y métricas de mercado.",
+    "kpis": {
+      "monthly_revenue": "Ingresos Mensuales",
+      "avg_margin": "Margen Promedio",
+      "pending_quotes": "Cotizaciones Pendientes",
+      "due_today": "vencen hoy"
+    },
+    "quotes": {
+      "title": "Cotizaciones Actuales",
+      "new_button": "Nueva Cotización",
+      "search_placeholder": "Buscar cliente o ID...",
+      "status_placeholder": "Estado",
+      "statuses": {
+        "all": "Todos",
+        "pending": "Pendiente",
+        "approved": "Aprobado",
+        "draft": "Borrador"
+      },
+      "table": {
+        "client": "Cliente/ID",
+        "date": "Fecha",
+        "headcount": "Invitados",
+        "total": "Total",
+        "margin": "Margen",
+        "status": "Estado"
+      },
+      "pagination": "Mostrando {start} a {end} de {total} entradas",
+      "prev": "Anterior",
+      "next": "Siguiente"
+    },
+    "market": {
+      "title": "Monitor de Mercado",
+      "updated": "Actualización en vivo",
+      "alerts_title": "Alertas de Costos",
+      "watchlist_title": "Lista de Seguimiento",
+      "view_report": "Ver Reporte",
+      "alerts": {
+        "beef": {
+          "title": "Solomillo de Ternera",
+          "subtitle": "+$2 Alza Hoy",
+          "description": "Proveedor notifica escasez por retrasos en el transporte regional."
+        },
+        "eggs": {
+          "title": "Huevos (Docena)",
+          "subtitle": "+45% Variación Estacional",
+          "description": "Se espera que los precios suban hasta el próximo envío el viernes."
+        },
+        "seafood": {
+          "title": "Estado Mercado del Marisco",
+          "description": "Los precios del salmón se han estabilizado tras el pico de la semana pasada."
+        }
+      },
+      "ingredients": {
+        "cream": "Crema Espesa",
+        "chicken": "Pechuga de Pollo",
+        "truffle": "Aceite de Trufa"
+      }
+    }
+  },
+  "Inventory": {
+    "title": "Inventario de Ingredientes",
+    "description": "Gestiona tus niveles de stock y precios de ingredientes.",
+    "import": "Importar",
+    "add_button": "Añadir Ítem",
+    "search_placeholder": "Buscar por Nombre, SKU o Categoría...",
+    "filter": "Filtrar por Categoría",
+    "all_categories": "Todas las Categorías",
+    "categories": {
+      "meat": "Carne",
+      "dairy": "Lácteos",
+      "veggie": "Verdura",
+      "spice": "Especia"
+    },
+    "more": "Más Filtros",
+    "bulk_update": "Actualización Masiva",
+    "table": {
+      "ingredient": "Ingrediente",
+      "category": "Categoría",
+      "unit": "Unidad",
+      "price": "Precio",
+      "trend": "Tendencia (7d)",
+      "updated": "Última Actualización",
+      "action": "Acción",
+      "edit": "Editar"
+    },
+    "pagination": "Mostrando {start} a {end} de {total} resultados",
+    "items": {
+      "angus": "Falda de Ternera Angus",
+      "milk": "Leche Entera",
+      "lettuce": "Lechuga Romana",
+      "chicken": "Pechuga de Pollo",
+      "cheese": "Queso Cheddar",
+      "saffron": "Azafrán",
+      "times": {
+        "hrs": "hace {count} hrs",
+        "days": "hace {count} días",
+        "day": "hace 1 día"
+      }
+    }
+  },
+  "Recipes": {
+    "title": "Calculadora de Costos y Márgenes",
+    "description": "Crea recetas y calcula la rentabilidad en tiempo real.",
+    "save": "Guardar Receta",
+    "cancel": "Cancelar",
+    "library": "Biblioteca de Ingredientes",
+    "search": "Buscar ingredientes",
+    "composition": "Ingredientes de la Receta",
+    "breadcrumb": {
+      "home": "Inicio",
+      "recipes": "Recetas",
+      "new": "Nueva Receta"
+    },
+    "table": {
+      "ingredient": "Ingrediente",
+      "quantity": "Cantidad",
+      "unit": "Unidad",
+      "cost_unit": "Costo Unitario",
+      "total": "Total",
+      "action": "Acción"
+    },
+    "financials": {
+      "total_cost": "Costo Total de Producción",
+      "suggested_price": "Precio de Venta Objetivo",
+      "cost_portion": "Costo por Porción",
+      "suggested_price_3x": "Precio Sugerido (3x)",
+      "price_portion": "Precio por Porción",
+      "margin": "Margen",
+      "view_sheet": "Ver Hoja de Producción"
+    },
+    "categories": {
+      "main": "Plato Principal",
+      "appetizer": "Entrante",
+      "dessert": "Postre",
+      "beverage": "Bebida"
+    },
+    "form": {
+      "name": "Nombre de la Receta",
+      "category": "Categoría",
+      "yield": "Rendimiento (Porciones)",
+      "clear": "Limpiar todo",
+      "supplier": "Proveedor"
+    }
+  },
+  "Events": {
+    "title": "Detalles del Evento",
+    "tabs": {
+      "all": "Todos",
+      "apps": "Entrantes",
+      "mains": "Principales",
+      "sides": "Guarniciones",
+      "beverages": "Bebidas"
+    },
+    "kpis": {
+      "draft": "Borrador",
+      "sent": "Enviado",
+      "confirmed": "Confirmado"
+    },
+    "client_label": "Cliente",
+    "guest_count": "Nº Invitados",
+    "services": "Servicios y Menús",
+    "add_item": "Añadir Ítem",
+    "preview": "Vista Previa",
+    "quote_header": "COTIZACIÓN",
+    "bill_to": "Preparado Para",
+    "event_date": "Fecha del Evento",
+    "table": {
+      "description": "Descripción",
+      "qty": "CANT",
+      "price": "Precio",
+      "amount": "Total",
+      "empty": "Aún no hay ítems en la cotización."
+    },
+    "financials": {
+      "subtotal": "Subtotal",
+      "service_fee": "Cargo por Servicio (18%)",
+      "tax": "Impuesto (8.5%)",
+      "total": "Gran Total"
+    },
+    "actions": {
+      "send": "Enviar Cotización al Cliente",
+      "last_saved": "Último guardado: Ahora mismo",
+      "browse_catalog": "Explorar Catálogo para Más Ítems",
+      "issued": "Emitido"
+    },
+    "navigation": {
+      "dashboard": "Panel",
+      "events": "Eventos",
+      "calendar": "Calendario",
+      "clients": "Clientes"
+    },
+    "demo": {
+      "wedding": "Recepción de Boda Smith",
+      "upcoming": "Próximos",
+      "sarah_john": "Sarah y John Smith"
+    }
+  },
+  "Clients": {
+    "title": "Directorio de Clientes",
+    "description": "Gestiona tu base de clientes, historial y seguimiento de ingresos.",
+    "add_button": "Añadir Cliente",
+    "search_placeholder": "Buscar por Nombre, Correo o Teléfono...",
+    "filters": {
+      "all": "Todos",
+      "vip": "VIP",
+      "corporate": "Corporativo",
+      "institutional": "Institucional",
+      "private": "Evento Privado"
+    },
+    "types": {
+      "corporate": "Corporativo",
+      "private": "Evento Privado",
+      "vip": "VIP",
+      "institutional": "Institucional"
+    },
+    "table_header": {
+      "spent": "GASTO TOTAL"
+    },
+    "pagination": "Mostrando {start} a {end} de {total} entradas",
+    "details": {
+      "email": "Correo",
+      "call": "Llamar",
+      "ltv": "Valor de Vida",
+      "outstanding": "Pendiente",
+      "recent_events": "Eventos Recientes",
+      "view_all": "Ver Todos",
+      "guests": "{count} Invitados",
+      "notes": "Notas",
+      "create_quote": "Crear Nueva Cotización",
+      "empty_selection": "Selecciona un cliente para ver detalles"
+    }
+  },
+  "Financials": {
+    "title": "Analíticas Financieras",
+    "description": "Seguimiento de ingresos, costos y métricas de rentabilidad.",
+    "revenue": "Ingresos Totales",
+    "profit": "Beneficio Neto",
+    "margin": "Margen Promedio",
+    "vs_last_month": "vs mes anterior",
+    "revenue_vs_profit": {
+      "title": "Ingresos vs. Beneficios",
+      "description": "Análisis comparativo de ingresos frente al beneficio neto a lo largo del tiempo."
+    },
+    "top_recipes": {
+      "title": "Top 5 Recetas Rentables",
+      "description": "Platos con el mejor margen de beneficio."
+    },
+    "event_volume": {
+      "title": "Volumen Mensual de Eventos",
+      "description": "Número de eventos realizados por mes."
+    }
+  },
+  "Common": {
+    "language": "Idioma",
+    "english": "Inglés",
+    "spanish": "Español"
+  }
+}
