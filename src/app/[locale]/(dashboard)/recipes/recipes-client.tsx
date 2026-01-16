@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,12 @@ import {
   Search, 
   Plus, 
   Trash2, 
-  Filter,
   ChevronRight,
   Save,
-  ArrowRight,
-  Loader2
+  Loader2,
+  Edit,
+  ArrowLeft,
+  Info
 } from "lucide-react";
 import {
   Select,
@@ -24,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTranslations } from "next-intl";
-import { saveRecipe } from "./actions";
+import { saveRecipe, getRecipeDetails } from "./actions";
 
 // Types
 type Ingredient = {
@@ -36,51 +37,105 @@ type Ingredient = {
 
 type RecipeIngredient = Ingredient & {
   quantity: number;
-  uid: string; // unique link id for list key (just in case multiple of same ing?)
+  uid: string;
+};
+
+type RecipeSummary = {
+  id: string;
+  name: string;
+  category: string;
+  totalCost: number;
+  margin: number;
+  price: number;
+  description: string;
 };
 
 interface RecipesClientProps {
   ingredientLibrary: Ingredient[];
+  initialRecipes: RecipeSummary[];
   orgId: string;
 }
 
-export default function RecipesClient({ ingredientLibrary, orgId }: RecipesClientProps) {
+export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId }: RecipesClientProps) {
   const t = useTranslations("Recipes");
+
+  // Info Tooltip State
+  const [showInfo, setShowInfo] = useState(false);
+
+  // View Mode State
+  const [viewMode, setViewMode] = useState<'list' | 'builder'>('list');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [loadingRecipe, setLoadingRecipe] = useState(false);
   
-  // Recipe State
+  // Recipe Builder State
   const [recipeName, setRecipeName] = useState("New Recipe");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("main-course");
   const [yieldPortions, setYieldPortions] = useState(1);
   const [selectedIngredients, setSelectedIngredients] = useState<RecipeIngredient[]>([]);
+  const [marginPercent, setMarginPercent] = useState(30);
   
   // Search State
   const [searchTerm, setSearchTerm] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Financial State (Auto-calculated/Linked)
-  // Logic: 
-  // 1. Total Ingredient Cost = Sum(qty * unitCost)
-  // 2. Cost Per Portion = Total / Yield
-  // 3. User can set MARGIN %.
-  // 4. Suggested Sell Price = Cost Per Portion / (1 - Margin%) or similar. 
-  // Let's stick to the prompt: "Vincula el campo margin para que calcule automáticamente el price".
-  // If user changes Margin, Price updates. If user changes Price (Target), Margin updates?
-  // Let's drive it by Margin for now as requested.
-
-  const [marginPercent, setMarginPercent] = useState(30);
-
+  // Financial Calculations
   const totalCost = selectedIngredients.reduce((sum, item) => sum + (item.quantity * item.cost), 0);
   const costPerPortion = yieldPortions > 0 ? totalCost / yieldPortions : 0;
-  
-  // Price Calculation: Cost / (1 - Margin) assuming Margin is % of Price.
-  // Example: Cost $70, Margin 30% -> Price $100. Profit $30. 30/100 = 30%.
-  // Formula: Price = Cost / (1 - margin/100)
   const sellPrice = marginPercent < 100 ? costPerPortion / (1 - marginPercent / 100) : 0;
 
+  const handleCreateNew = () => {
+    // Reset state
+    setRecipeName("New Recipe");
+    setDescription("");
+    setCategory("main-course");
+    setYieldPortions(1);
+    setSelectedIngredients([]);
+    setMarginPercent(30);
+    
+    setIsEditing(false);
+    setEditingId(null);
+    setViewMode('builder');
+  };
+
+  const handleEdit = async (recipe: RecipeSummary) => {
+    setLoadingRecipe(true);
+    try {
+      const details = await getRecipeDetails(recipe.id);
+      if (details.error) {
+        alert("Error loading recipe: " + details.error);
+        return;
+      }
+
+      setRecipeName(details.name);
+      setDescription(details.description || "");
+      setCategory(details.category || "main-course");
+      setMarginPercent(details.margin);
+      // Determine yield if not stored? 
+      // If we assume price was stored correctly, we might back-calculate, but simplest is default 1 for now
+      // as discussed in plan.
+      setYieldPortions(1); 
+      setSelectedIngredients(details.ingredients || []);
+      
+      setEditingId(recipe.id);
+      setIsEditing(true);
+      setViewMode('builder');
+    } catch (e) {
+      console.error(e);
+      alert("Failed to load recipe details");
+    } finally {
+      setLoadingRecipe(false);
+    }
+  };
+
+  const handleBackToList = () => {
+    setViewMode('list');
+    setEditingId(null);
+    setIsEditing(false);
+  };
+
   const handleAddIngredient = (ing: Ingredient) => {
-    // Check if distinct id needed? For now allow adding same ingredient once, or multiple?
-    // Usually unique ingredient per recipe.
     const exists = selectedIngredients.find(i => i.id === ing.id);
     if (!exists) {
       setSelectedIngredients([
@@ -103,12 +158,13 @@ export default function RecipesClient({ ingredientLibrary, orgId }: RecipesClien
   const handleSave = async () => {
     setIsSaving(true);
     const payload = {
+      id: editingId || undefined, // Send ID if editing
       orgId,
       name: recipeName,
       description: description || `A delicious ${category}`,
       servings: yieldPortions,
       totalCost: totalCost,
-      price: sellPrice, // Per portion suggested price? Or Total batch price? Usually dashboard "Price" column implies Unit Price.
+      price: sellPrice,
       margin: marginPercent,
       ingredients: selectedIngredients.map(i => ({ id: i.id, quantity: i.quantity }))
     };
@@ -119,42 +175,140 @@ export default function RecipesClient({ ingredientLibrary, orgId }: RecipesClien
     if (res.error) {
       alert("Error saving: " + res.error);
     } else {
-      alert("Recipe saved successfully!");
-      // Reset or redirect?
-      // Reset for now
-      setRecipeName("New Recipe");
-      setSelectedIngredients([]);
+      // Return to list on success
+      handleBackToList();
     }
   };
-
 
   const filteredLibrary = ingredientLibrary.filter(i => 
     i.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // --- RENDER: LIST VIEW ---
+  if (viewMode === 'list') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8 p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
+              {t("title")}
+            </h1>
+            <p className="text-slate-500 mt-1">
+              Manage your recipes and costs
+            </p>
+          </div>
+          <Button 
+            className="bg-emerald-500 hover:bg-emerald-600 text-white"
+            onClick={handleCreateNew}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            {t("breadcrumb.new")}
+          </Button>
+        </div>
+
+        <Card className="border-slate-200 dark:border-slate-800">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                  <tr>
+                    <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase">Recipe Name</th>
+                    <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase">Category</th>
+                    <th className="text-right py-4 px-6 text-xs font-semibold text-slate-500 uppercase">Total Cost</th>
+                    <th className="text-right py-4 px-6 text-xs font-semibold text-slate-500 uppercase">Margin</th>
+                    <th className="text-right py-4 px-6 text-xs font-semibold text-slate-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {initialRecipes.map((recipe) => (
+                    <tr key={recipe.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                      <td className="py-4 px-6">
+                        <div className="font-medium text-slate-900 dark:text-white">{recipe.name}</div>
+                        <div className="text-xs text-slate-500 truncate max-w-[200px]">{recipe.description}</div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <Badge variant="outline" className="capitalize">
+                          {recipe.category || 'Main'}
+                        </Badge>
+                      </td>
+                      <td className="py-4 px-6 text-right font-medium text-slate-500">
+                        ${recipe.totalCost?.toFixed(2) || '0.00'}
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <Badge 
+                          variant="secondary"
+                          className={`${
+                            recipe.margin < 25 ? 'bg-rose-100 text-rose-700' : 
+                            recipe.margin > 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          {(recipe.margin || 0).toFixed(0)}%
+                        </Badge>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(recipe)}
+                          disabled={loadingRecipe}
+                        >
+                          {loadingRecipe && editingId === recipe.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+                          ) : (
+                            <Edit className="w-4 h-4 text-emerald-600" />
+                          )}
+                          <span className="sr-only">Edit</span>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {initialRecipes.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400">
+                        No recipes found. Create your first one!
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // --- RENDER: BUILDER VIEW ---
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8 p-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
-        <span>{t("breadcrumb.home")}</span>
+        <Button 
+          variant="link" 
+          className="p-0 h-auto text-slate-500 hover:text-slate-900"
+          onClick={handleBackToList}
+        >
+          {t("breadcrumb.recipes")}
+        </Button>
         <ChevronRight className="w-4 h-4" />
-        <span>{t("breadcrumb.recipes")}</span>
-        <ChevronRight className="w-4 h-4" />
-        <span className="text-emerald-600 font-medium">{t("breadcrumb.new")}</span>
+        <span className="text-emerald-600 font-medium">
+          {isEditing ? `Edit: ${recipeName}` : t("breadcrumb.new")}
+        </span>
       </div>
 
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
-            {t("title")}
+            {isEditing ? "Update Recipe" : t("title")}
           </h1>
           <p className="text-slate-500 mt-1">
-            {t("description")}
+            {isEditing ? "Modify existing recipe details and ingredients" : t("description")}
           </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="border-slate-300">
+          <Button variant="outline" className="border-slate-300" onClick={handleBackToList}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
             {t("cancel")}
           </Button>
           <Button 
@@ -163,7 +317,7 @@ export default function RecipesClient({ ingredientLibrary, orgId }: RecipesClien
             disabled={isSaving}
           >
             {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            {t("save")}
+            {isEditing ? "Update Recipe" : t("save")}
           </Button>
         </div>
       </div>
@@ -334,7 +488,7 @@ export default function RecipesClient({ ingredientLibrary, orgId }: RecipesClien
                       </tr>
                     ))}
                     {selectedIngredients.length === 0 && (
-                       <tr><td colSpan={6} className="text-center py-8 text-slate-400">Add ingredients from the library</td></tr>
+                      <tr><td colSpan={6} className="text-center py-8 text-slate-400">Add ingredients from the library</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -378,7 +532,33 @@ export default function RecipesClient({ ingredientLibrary, orgId }: RecipesClien
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <div className="text-xs text-slate-500 mb-1">Target Margin %</div>
+                      <div className="relative flex items-center gap-1.5 mb-1">
+                        <div className="text-xs text-slate-500">Target Margin %</div>
+                        <button
+                          type="button"
+                          className="text-slate-400 hover:text-emerald-500 transition-colors focus:outline-none"
+                          onMouseEnter={() => setShowInfo(true)}
+                          onMouseLeave={() => setShowInfo(false)}
+                          onClick={() => setShowInfo(!showInfo)}
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                        {showInfo && (
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-slate-900 text-white text-xs p-4 rounded-xl shadow-xl z-50 border border-slate-700">
+                             <h4 className="font-bold mb-2 text-emerald-400 text-sm flex items-center gap-2">
+                               <Info className="w-4 h-4" />
+                               {t('financials.margin_info.title')}
+                             </h4>
+                             <p className="mb-3 text-slate-300 leading-relaxed">{t('financials.margin_info.body')}</p>
+                             <div className="space-y-2 mb-3 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                                <p><strong className="text-rose-300">Markup:</strong> {t('financials.margin_info.markup').split(':')[1]}</p>
+                                <p><strong className="text-emerald-300">Margin:</strong> {t('financials.margin_info.margin').split(':')[1]}</p>
+                             </div>
+                             <p className="italic text-slate-400 border-t border-slate-800 pt-2 mt-2">{t('financials.margin_info.why')}</p>
+                             <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-r border-b border-slate-700"></div>
+                          </div>
+                        )}
+                      </div>
                       <Input 
                         type="number" 
                         value={marginPercent} 

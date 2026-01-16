@@ -20,7 +20,11 @@ import {
   Send,
   Save,
   Loader2,
-  Trash2
+  Trash2,
+  ArrowLeft,
+  ChevronRight,
+  Filter,
+  MoreHorizontal
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Separator } from "@/components/ui/separator";
@@ -38,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { upsertEvent, updateEventStatus } from "./actions";
 
 interface EventsClientProps {
@@ -50,15 +55,20 @@ interface EventsClientProps {
 }
 
 export default function EventsClient({ initialData, orgId }: EventsClientProps) {
-  const t = useTranslations("Events");
+  const t = useTranslations("Events"); // Assuming "Events" namespace exists
+  // Note: If translations are missing for table headers, we might need to rely on static text or user provided keys.
+  // Using generic "Events" translations or hardcoded for now as per "EventsList" request pattern.
+  
   const { events: initialEvents, clients, recipes } = initialData;
 
   const [events, setEvents] = useState(initialEvents);
-  // Default to first event or clean state if empty
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(initialEvents.length > 0 ? initialEvents[0].id : null);
   
-  // Edit State
-  const [isEditing, setIsEditing] = useState(false);
+  // View State
+  const [viewMode, setViewMode] = useState<'list' | 'builder'>('list');
+
+  // Builder State
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false); // Controls if the form inputs are editable or view-only in builder
   const [isLoading, setIsLoading] = useState(false);
 
   // Current Form State
@@ -72,44 +82,59 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     selectedRecipes: [] as { recipeId: string; quantity: number; details?: any }[]
   });
 
+  // Search State for List
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Load selected event into form
   useEffect(() => {
-    if (selectedEventId) {
-      const evt = events.find(e => e.id === selectedEventId);
-      if (evt) {
+    if (viewMode === 'builder') {
+      if (selectedEventId) {
+        const evt = events.find(e => e.id === selectedEventId);
+        if (evt) {
+          setFormData({
+            id: evt.id,
+            name: evt.name,
+            clientId: evt.clientId,
+            date: new Date(evt.date).toISOString().split('T')[0],
+            guests: evt.guests,
+            status: evt.status,
+            selectedRecipes: evt.eventRecipes?.map((er: any) => ({
+              recipeId: er.recipe.id,
+              quantity: er.quantity,
+              details: er.recipe
+            })) || []
+          });
+          setIsEditing(false); // Start in "View/Preview" mode within builder
+        }
+      } else {
+        // New Event Mode
         setFormData({
-          id: evt.id,
-          name: evt.name,
-          clientId: evt.clientId,
-          date: new Date(evt.date).toISOString().split('T')[0],
-          guests: evt.guests,
-          status: evt.status,
-          selectedRecipes: evt.eventRecipes?.map((er: any) => ({
-            recipeId: er.recipe.id,
-            quantity: er.quantity,
-            details: er.recipe
-          })) || []
+          id: "",
+          name: "New Event",
+          clientId: clients.length > 0 ? clients[0].id : "",
+          date: new Date().toISOString().split('T')[0],
+          guests: 100,
+          status: "DRAFT",
+          selectedRecipes: []
         });
-        setIsEditing(false); // View mode initially
+        setIsEditing(true); // Start in Edit mode for new events
       }
-    } else {
-      // New Event Mode
-      setFormData({
-        id: "",
-        name: "New Wedding",
-        clientId: clients.length > 0 ? clients[0].id : "",
-        date: new Date().toISOString().split('T')[0],
-        guests: 100,
-        status: "DRAFT",
-        selectedRecipes: []
-      });
-      setIsEditing(true);
     }
-  }, [selectedEventId, events]);
+  }, [selectedEventId, viewMode, events, clients]);
 
   const handleCreateNew = () => {
     setSelectedEventId(null);
-    setIsEditing(true);
+    setViewMode('builder');
+  };
+
+  const handleEditEvent = (evt: any) => {
+    setSelectedEventId(evt.id);
+    setViewMode('builder');
+  };
+
+  const handleBackToList = () => {
+    setViewMode('list');
+    setSelectedEventId(null);
   };
 
   const calculateTotals = () => {
@@ -172,7 +197,10 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     if (res.error) {
       alert("Error: " + res.error);
     } else {
-      alert("Saved!");
+      // Reload or update local list? Reloading page is simplest to sync everything.
+      // But let's try to just go back to list for smoother UX if possible, 
+      // but we need to refresh data. 
+      // window.location.reload() was used before. Let's keep it for reliability.
       window.location.reload();
     }
   };
@@ -185,36 +213,158 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     // Optimistic update
     setFormData(prev => ({ ...prev, status: newStatus }));
     await updateEventStatus(formData.id, newStatus);
-    // Refresh handled by router usually, but simple state update here works for UI
   };
 
   const clientName = clients.find(c => c.id === formData.clientId)?.name || "Select Client";
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'CONFIRMED': return 'bg-emerald-100 text-emerald-700';
+      case 'SENT': return 'bg-blue-100 text-blue-700';
+      default: return 'bg-slate-100 text-slate-700';
+    }
+  };
+
+  const filteredEvents = events.filter(e => 
+    e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    e.client?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // --- VIEW: LIST ---
+  if (viewMode === 'list') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8 p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-slate-900 dark:text-white">Events</h1>
+            <p className="text-slate-500 mt-1">Manage all your upcoming catering events.</p>
+          </div>
+          <Button 
+            className="bg-emerald-500 hover:bg-emerald-600 text-white"
+            onClick={handleCreateNew}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Event
+          </Button>
+        </div>
+
+        <Card className="border-slate-200 dark:border-slate-800">
+          <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <div className="relative max-w-sm w-full">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input 
+                  placeholder="Search events or clients..." 
+                  className="pl-9 bg-slate-50 dark:bg-slate-900"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="icon">
+                  <Filter className="w-4 h-4 text-slate-500" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 uppercase font-semibold">
+                  <tr>
+                    <th className="text-left py-4 px-6 rounded-tl-lg">Event Name</th>
+                    <th className="text-left py-4 px-6">Client</th>
+                    <th className="text-left py-4 px-6">Date</th>
+                    <th className="text-center py-4 px-6">Guests</th>
+                    <th className="text-center py-4 px-6">Status</th>
+                    <th className="text-right py-4 px-6">Total Value</th>
+                    <th className="text-right py-4 px-6 rounded-tr-lg">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredEvents.map((evt) => (
+                    <tr 
+                      key={evt.id} 
+                      className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors cursor-pointer"
+                      onClick={() => handleEditEvent(evt)}
+                    >
+                      <td className="py-4 px-6">
+                        <div className="font-medium text-slate-900 dark:text-white">{evt.name}</div>
+                      </td>
+                      <td className="py-4 px-6 text-slate-600 dark:text-slate-400">
+                        {evt.client?.name || "Unknown"}
+                      </td>
+                      <td className="py-4 px-6 text-slate-600 dark:text-slate-400">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {new Date(evt.date).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-center text-slate-600 dark:text-slate-400">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-xs font-medium">
+                          <Users className="w-3 h-3" />
+                          {evt.guests}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <Badge className={`${getStatusColor(evt.status)} border-0`}>
+                          {evt.status}
+                        </Badge>
+                      </td>
+                      <td className="py-4 px-6 text-right font-medium text-emerald-600">
+                        ${evt.totalPrice ? evt.totalPrice.toLocaleString(undefined, {minimumFractionDigits: 2}) : '0.00'}
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditEvent(evt);
+                          }}
+                        >
+                          <ChevronRight className="w-4 h-4 text-slate-400" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredEvents.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-slate-400">
+                        No events found matching your search.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // --- VIEW: BUILDER ---
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8">
       {/* Top Header */}
       <div className="bg-white border-b border-slate-200 dark:border-slate-800 px-8 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" className="text-slate-500" onClick={handleBackToList}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <div className="h-6 w-px bg-slate-200"></div>
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 bg-[#10b981] rounded-xl flex items-center justify-center">
                 <Utensils className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold text-slate-900 dark:text-white">CaterFlow</span>
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <Input 
-                placeholder="Search events..." 
-                className="pl-9 w-64 bg-slate-50 border-slate-200"
-              />
-            </div>
           </div>
           <div className="flex items-center gap-4">
-            <Button onClick={handleCreateNew} className="bg-emerald-500 hover:bg-emerald-600">
-              <Plus className="w-4 h-4 mr-2" />
-              New Event
-            </Button>
+            {/* Additional Header Actions if needed */}
           </div>
         </div>
       </div>
@@ -222,8 +372,8 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
       <div className="p-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
-          <span className="hover:text-slate-900 cursor-pointer">{t("navigation.events")}</span>
-          <span>/</span>
+          <span className="hover:text-slate-900 cursor-pointer" onClick={handleBackToList}>Events</span>
+          <ChevronRight className="w-4 h-4" />
           <span className="text-slate-900 font-medium">{formData.name}</span>
         </div>
 
@@ -237,9 +387,11 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                  className="text-4xl font-bold h-12 w-1/2"
                />
             ) : (
-                <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
-                {formData.name}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
+                  {formData.name}
+                  </h1>
+                </div>
             )}
             
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-full">
@@ -418,8 +570,8 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           </div>
 
           {/* Right Side - Quote Preview */}
-          <div className="sticky top-6 h-[calc(100vh-100px)] flex flex-col">
-            <div className="flex-1 overflow-y-auto pr-2 pb-6">
+          <div>
+            <div className="pb-6">
             <Card className="border-slate-200 flex-shrink-0 mb-6">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
@@ -495,9 +647,11 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                            </div>
                            <div className="flex gap-4">
                               <span className="w-8 text-center text-slate-600">{item.quantity}</span>
-                              <span className="w-12 text-right text-slate-600">${item.details?.price}</span>
+                              <span className="w-12 text-right text-slate-600">
+                                ${(item.details?.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
                               <span className="w-16 text-right font-bold text-slate-900">
-                                ${(item.quantity * (item.details?.price || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                ${(item.quantity * (item.details?.price || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                            </div>
                         </div>
@@ -556,22 +710,6 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
               </CardContent>
             </Card>
 
-            {/* Event Selector List - Quick Navigation */}
-            <div className="mt-6 border-t pt-4">
-               <h4 className="text-sm font-semibold text-slate-500 uppercase mb-4">Current Events</h4>
-               <div className="space-y-2">
-                 {events.map(e => (
-                   <div 
-                     key={e.id} 
-                     onClick={() => setSelectedEventId(e.id)}
-                     className={`p-2 rounded cursor-pointer hover:bg-slate-100 flex justify-between ${selectedEventId === e.id ? 'bg-slate-100 font-semibold' : ''}`}
-                   >
-                     <span className="text-sm truncate">{e.name}</span>
-                     <span className="text-xs text-slate-400">{new Date(e.date).toLocaleDateString()}</span>
-                   </div>
-                 ))}
-               </div>
-            </div>
             </div>
           </div>
         </div>
@@ -579,3 +717,4 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     </div>
   );
 }
+

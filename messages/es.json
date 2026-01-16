@@ -140,7 +140,14 @@
       "suggested_price_3x": "Precio Sugerido (3x)",
       "price_portion": "Precio por Porción",
       "margin": "Margen",
-      "view_sheet": "Ver Hoja de Producción"
+      "view_sheet": "Ver Hoja de Producción",
+      "margin_info": {
+        "title": "¿Markup o Margen?",
+        "body": "En CaterFlow calculamos el Margen de Utilidad, no el Markup.",
+        "markup": "Markup: Suma un porcentaje a tu costo.",
+        "margin": "Margen: Asegura que un porcentaje del PRECIO FINAL sea tu ganancia.",
+        "why": "¿Por qué es mejor? Porque tus impuestos, comisiones y gastos operativos se pagan del total de la venta. Calcular con Margen protege tus beneficios reales ante imprevistos o descuentos."
+      }
     },
     "categories": {
       "main": "Plato Principal",
@@ -174,6 +181,7 @@
     "guest_count": "Nº Invitados",
     "services": "Servicios y Menús",
     "add_item": "Añadir Ítem",
+    "no_items": "No hay ítems seleccionados",
     "preview": "Vista Previa",
     "quote_header": "COTIZACIÓN",
     "bill_to": "Preparado Para",

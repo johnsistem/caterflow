@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import RecipesClient from "./recipes-client";
-import { fetchIngredients } from "./actions";
+import { fetchIngredients, getRecipes } from "./actions";
 
 export default async function RecipesPage() {
   const supabase = await createClient();
@@ -23,12 +23,16 @@ export default async function RecipesPage() {
     return <div>No Organization Found for User</div>;
   }
 
-  // 3. Fetch Ingredient Library (for the sidebar)
-  const ingredients = await fetchIngredients(userData.organizationId);
+  // 3. Fetch Data
+  const [ingredients, recipes] = await Promise.all([
+    fetchIngredients(userData.organizationId),
+    getRecipes(userData.organizationId)
+  ]);
 
   return (
     <RecipesClient 
       ingredientLibrary={ingredients || []} 
+      initialRecipes={recipes || []}
       orgId={userData.organizationId} 
     />
   );

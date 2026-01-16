@@ -140,7 +140,14 @@
       "suggested_price_3x": "Suggested Price (3x)",
       "price_portion": "Price Per Portion",
       "margin": "Margin",
-      "view_sheet": "View Production Sheet"
+      "view_sheet": "View Production Sheet",
+      "margin_info": {
+        "title": "Markup or Margin?",
+        "body": "In CaterFlow we calculate Utility Margin, not Markup.",
+        "markup": "Markup: Adds a percentage to your cost.",
+        "margin": "Margin: Ensures a percentage of the FINAL PRICE is your profit.",
+        "why": "Why is it better? Because taxes, commissions, and overheads are paid from the total sale. Calculating with Margin protects your real profits."
+      }
     },
     "categories": {
       "main": "Main Course",
@@ -174,6 +181,7 @@
     "guest_count": "Guest Count",
     "services": "Services & Menus",
     "add_item": "Add Item",
+    "no_items": "No items selected",
     "preview": "Live Preview",
     "quote_header": "QUOTE",
     "bill_to": "Prepared For",
