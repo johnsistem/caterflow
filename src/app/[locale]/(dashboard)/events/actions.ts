@@ -102,6 +102,15 @@ export async function upsertEvent(data: {
     totalPrice += price * r.quantity;
   });
 
+  // Apply Service Fee (18%) and Tax (8.5%) to match frontend logic
+  // TODO: Move these constants to Organization settings
+  const serviceFee = totalPrice * 0.18;
+  const tax = totalPrice * 0.085;
+  totalPrice = totalPrice + serviceFee + tax;
+  
+  // Round to 2 decimals
+  totalPrice = Math.round(totalPrice * 100) / 100;
+
   const payload = {
     organizationId: data.orgId,
     clientId: data.clientId,
@@ -187,4 +196,419 @@ export async function deleteEvent(eventId: string) {
   revalidatePath("/(dashboard)/events");
   revalidatePath("/(dashboard)/dashboard");
   return { success: true };
+}
+
+// ============================================
+// PROFITABILITY CORE - Cascade Recalculation
+// ============================================
+
+const roundTo2 = (num: number) => Math.round(num * 100) / 100;
+
+export async function recalculateRecipeCost(recipeId: string) {
+  const supabase = await createClient();
+
+  // 1. Get all ingredients of this recipe
+  const { data: recipeIngredients, error: riError } = await supabase
+    .from("RecipeIngredient")
+    .select(`
+      quantity,
+      ingredient:Ingredient(id, cost)
+    `)
+    .eq("recipeId", recipeId);
+
+  if (riError) return { error: riError.message };
+
+  // 2. Calculate totalCost
+  let totalCost = 0;
+  recipeIngredients?.forEach((ri: any) => {
+    const ingredientCost = ri.ingredient?.cost || 0;
+    totalCost += ingredientCost * ri.quantity;
+  });
+  totalCost = roundTo2(totalCost);
+
+  // 3. Get recipe margin to calculate price
+  const { data: recipe, error: recipeError } = await supabase
+    .from("Recipe")
+    .select("margin")
+    .eq("id", recipeId)
+    .single();
+
+  if (recipeError) return { error: recipeError.message };
+
+  const margin = recipe?.margin || 0.3;
+  const price = roundTo2(totalCost * (1 + margin));
+
+  // 4. Update recipe
+  const { error: updateError } = await supabase
+    .from("Recipe")
+    .update({ totalCost, price })
+    .eq("id", recipeId);
+
+  if (updateError) return { error: updateError.message };
+
+  return { success: true, totalCost, price };
+}
+
+export async function recalculateAllRecipesWithIngredient(ingredientId: string) {
+  const supabase = await createClient();
+
+  // 1. Find all recipes using this ingredient
+  const { data: recipeIngredients, error } = await supabase
+    .from("RecipeIngredient")
+    .select("recipeId")
+    .eq("ingredientId", ingredientId);
+
+  if (error) return { error: error.message };
+
+  const uniqueRecipeIds = [...new Set(recipeIngredients?.map(ri => ri.recipeId) || [])];
+
+  // 2. Recalculate each recipe
+  let updated = 0;
+  for (const recipeId of uniqueRecipeIds) {
+    const result = await recalculateRecipeCost(recipeId);
+    if (result.success) updated++;
+  }
+
+  // 3. Recalculate events that use these recipes (ONLY DRAFT)
+  await recalculateDraftEventsWithRecipes(uniqueRecipeIds);
+
+  revalidatePath("/(dashboard)/recipes");
+  revalidatePath("/(dashboard)/events");
+  revalidatePath("/(dashboard)/dashboard");
+
+  return { success: true, recipesUpdated: updated };
+}
+
+async function recalculateDraftEventsWithRecipes(recipeIds: string[]) {
+  const supabase = await createClient();
+
+  // Get all DRAFT events using any of these recipes
+  const { data: eventRecipes, error } = await supabase
+    .from("EventRecipe")
+    .select("eventId, event:Event!inner(status)")
+    .in("recipeId", recipeIds);
+
+  if (error) return;
+
+  // Filter only DRAFT events
+  const draftEventIds = [...new Set(
+    eventRecipes
+      ?.filter((er: any) => er.event?.status === "DRAFT")
+      .map((er: any) => er.eventId) || []
+  )];
+
+  // Recalculate each DRAFT event
+  for (const eventId of draftEventIds) {
+    await recalculateEventMargins(eventId);
+  }
+}
+
+export async function recalculateEventMargins(eventId: string) {
+  const supabase = await createClient();
+
+  // 1. Get all recipes in this event
+  const { data: eventRecipes, error: erError } = await supabase
+    .from("EventRecipe")
+    .select(`
+      quantity,
+      recipe:Recipe(id, price)
+    `)
+    .eq("eventId", eventId);
+
+  if (erError) return { error: erError.message };
+
+  // 2. Calculate new totalPrice
+  let totalPrice = 0;
+  eventRecipes?.forEach((er: any) => {
+    const recipePrice = er.recipe?.price || 0;
+    totalPrice += recipePrice * er.quantity;
+  });
+  
+  // Apply Service Fee (18%) and Tax (8.5%) to match frontend logic
+  const serviceFee = totalPrice * 0.18;
+  const tax = totalPrice * 0.085;
+  totalPrice = totalPrice + serviceFee + tax;
+
+  totalPrice = roundTo2(totalPrice);
+
+  // 3. Update event
+  const { error: updateError } = await supabase
+    .from("Event")
+    .update({ totalPrice })
+    .eq("id", eventId);
+
+  if (updateError) return { error: updateError.message };
+
+  return { success: true, totalPrice };
+}
+
+// ============================================
+// PROFITABILITY CORE - Event Duplication
+// ============================================
+
+export async function duplicateEvent(eventId: string, orgId: string) {
+  const supabase = await createClient();
+
+  // 1. Get original event with all relationships
+  const { data: originalEvent, error: fetchError } = await supabase
+    .from("Event")
+    .select(`
+      *,
+      eventRecipes:EventRecipe(
+        recipeId,
+        quantity,
+        servings
+      )
+    `)
+    .eq("id", eventId)
+    .single();
+
+  if (fetchError) return { error: fetchError.message };
+
+  // 2. Create new event
+  const newEventPayload = {
+    organizationId: orgId,
+    clientId: originalEvent.clientId,
+    name: `[COPIA] ${originalEvent.name}`,
+    date: new Date().toISOString(),
+    guests: originalEvent.guests,
+    status: "DRAFT",
+    totalPrice: 0, // Will be recalculated
+  };
+
+  const { data: newEvent, error: createError } = await supabase
+    .from("Event")
+    .insert(newEventPayload)
+    .select("id")
+    .single();
+
+  if (createError) return { error: createError.message };
+
+  const newEventId = newEvent.id;
+
+  // 3. Clone EventRecipe relations
+  if (originalEvent.eventRecipes && originalEvent.eventRecipes.length > 0) {
+    const newEventRecipes = originalEvent.eventRecipes.map((er: any) => ({
+      eventId: newEventId,
+      recipeId: er.recipeId,
+      quantity: er.quantity,
+      servings: er.servings,
+    }));
+
+    const { error: relError } = await supabase
+      .from("EventRecipe")
+      .insert(newEventRecipes);
+
+    if (relError) return { error: relError.message };
+  }
+
+  // 4. FORCE recalculation with current prices
+  await recalculateEventMargins(newEventId);
+
+  // 5. Fetch the complete new event to return it (for immediate UI redirect)
+  const { data: fullNewEvent, error: fetchNewError } = await supabase
+    .from("Event")
+    .select(`
+      *,
+      client:Client(id, name),
+      eventRecipes:EventRecipe(
+        quantity,
+        recipe:Recipe(id, name, price, category)
+      )
+    `)
+    .eq("id", newEventId)
+    .single();
+
+  revalidatePath("/(dashboard)/events");
+  revalidatePath("/(dashboard)/dashboard");
+
+  if (fetchNewError) return { error: "Created but failed to fetch: " + fetchNewError.message };
+
+  return { success: true, newEventId, newEvent: fullNewEvent };
+}
+
+// ============================================
+// PROFITABILITY CORE - Shopping List & Kitchen Sheet
+// ============================================
+
+interface ShoppingListItem {
+  ingredientId: string;
+  name: string;
+  unit: string;
+  totalNeeded: number;
+  currentStock: number;
+  toBuy: number;
+  costPerUnit: number;
+  estimatedCost: number;
+}
+
+export async function generateShoppingList(eventId: string) {
+  const supabase = await createClient();
+
+  // 1. Get event with guestCount and organization currency
+  const { data: event, error: eventError } = await supabase
+    .from("Event")
+    .select(`
+      name,
+      guests,
+      date,
+      organization:Organization(currency)
+    `)
+    .eq("id", eventId)
+    .single();
+
+  if (eventError) return { error: eventError.message };
+
+  // 2. Get all recipes of the event
+  const { data: eventRecipes, error: erError } = await supabase
+    .from("EventRecipe")
+    .select(`
+      quantity,
+      recipe:Recipe(
+        id,
+        ingredients:RecipeIngredient(
+          quantity,
+          ingredient:Ingredient(id, name, unit, cost, stock)
+        )
+      )
+    `)
+    .eq("eventId", eventId);
+
+  if (erError) return { error: erError.message };
+
+  // 3. Consolidate ingredients
+  const ingredientMap = new Map<string, ShoppingListItem>();
+
+  eventRecipes?.forEach((er: any) => {
+    const recipeMultiplier = er.quantity; // How many times this recipe is in the event
+    
+    er.recipe?.ingredients?.forEach((ri: any) => {
+      const ingredient = ri.ingredient;
+      if (!ingredient) return;
+
+      const quantityNeededPerRecipe = ri.quantity;
+      const totalNeededForThisRecipe = quantityNeededPerRecipe * recipeMultiplier;
+
+      if (ingredientMap.has(ingredient.id)) {
+        const existing = ingredientMap.get(ingredient.id)!;
+        existing.totalNeeded += totalNeededForThisRecipe;
+      } else {
+        ingredientMap.set(ingredient.id, {
+          ingredientId: ingredient.id,
+          name: ingredient.name,
+          unit: ingredient.unit,
+          totalNeeded: totalNeededForThisRecipe,
+          currentStock: ingredient.stock || 0,
+          toBuy: 0, // Will calculate next
+          costPerUnit: ingredient.cost || 0,
+          estimatedCost: 0, // Will calculate next
+        });
+      }
+    });
+  });
+
+  // 4. Calculate toBuy and estimatedCost
+  const items: ShoppingListItem[] = Array.from(ingredientMap.values()).map(item => {
+    const toBuy = Math.max(0, item.totalNeeded - item.currentStock);
+    const estimatedCost = roundTo2(toBuy * item.costPerUnit);
+    return {
+      ...item,
+      totalNeeded: roundTo2(item.totalNeeded),
+      toBuy: roundTo2(toBuy),
+      estimatedCost,
+    };
+  });
+
+  const totalEstimatedCost = roundTo2(
+    items.reduce((sum, item) => sum + item.estimatedCost, 0)
+  );
+
+  return {
+    success: true,
+    data: {
+      eventName: event.name,
+      guestCount: event.guests,
+      eventDate: event.date,
+      currency: (event.organization as any)?.currency || "USD",
+      items: items.sort((a, b) => a.name.localeCompare(b.name)),
+      totalEstimatedCost,
+    },
+  };
+}
+
+interface KitchenSheetItem {
+  name: string;
+  totalNeeded: number;
+  unit: string;
+}
+
+export async function generateKitchenSheet(eventId: string) {
+  const supabase = await createClient();
+
+  // 1. Get event info
+  const { data: event, error: eventError } = await supabase
+    .from("Event")
+    .select("name, guests, date")
+    .eq("id", eventId)
+    .single();
+
+  if (eventError) return { error: eventError.message };
+
+  // 2. Get all recipes of the event
+  const { data: eventRecipes, error: erError } = await supabase
+    .from("EventRecipe")
+    .select(`
+      quantity,
+      recipe:Recipe(
+        id,
+        ingredients:RecipeIngredient(
+          quantity,
+          ingredient:Ingredient(id, name, unit)
+        )
+      )
+    `)
+    .eq("eventId", eventId);
+
+  if (erError) return { error: erError.message };
+
+  // 3. Consolidate ingredients (without prices)
+  const ingredientMap = new Map<string, KitchenSheetItem>();
+
+  eventRecipes?.forEach((er: any) => {
+    const recipeMultiplier = er.quantity;
+    
+    er.recipe?.ingredients?.forEach((ri: any) => {
+      const ingredient = ri.ingredient;
+      if (!ingredient) return;
+
+      const quantityNeededPerRecipe = ri.quantity;
+      const totalNeededForThisRecipe = quantityNeededPerRecipe * recipeMultiplier;
+
+      if (ingredientMap.has(ingredient.id)) {
+        const existing = ingredientMap.get(ingredient.id)!;
+        existing.totalNeeded += totalNeededForThisRecipe;
+      } else {
+        ingredientMap.set(ingredient.id, {
+          name: ingredient.name,
+          unit: ingredient.unit,
+          totalNeeded: totalNeededForThisRecipe,
+        });
+      }
+    });
+  });
+
+  const items = Array.from(ingredientMap.values()).map(item => ({
+    ...item,
+    totalNeeded: roundTo2(item.totalNeeded),
+  }));
+
+  return {
+    success: true,
+    data: {
+      eventName: event.name,
+      guestCount: event.guests,
+      eventDate: event.date,
+      items: items.sort((a, b) => a.name.localeCompare(b.name)),
+    },
+  };
 }

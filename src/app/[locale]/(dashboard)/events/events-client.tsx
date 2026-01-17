@@ -44,7 +44,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { upsertEvent, updateEventStatus, deleteEvent } from "./actions";
+import { upsertEvent, updateEventStatus, deleteEvent, duplicateEvent, generateShoppingList, generateKitchenSheet } from "./actions";
+import { useRouter } from "next/navigation";
+import { Copy, ShoppingCart, ChefHat, FileText } from "lucide-react";
 
 interface EventsClientProps {
   initialData: {
@@ -58,8 +60,14 @@ interface EventsClientProps {
 export default function EventsClient({ initialData, orgId }: EventsClientProps) {
   const t = useTranslations("Events");
   const { events: initialEvents, clients, recipes } = initialData;
+  const router = useRouter();
 
   const [events, setEvents] = useState(initialEvents);
+  
+  // Sync state with props when router refreshes
+  useEffect(() => {
+    setEvents(initialData.events);
+  }, [initialData.events]);
   
   // View State
   const [viewMode, setViewMode] = useState<'list' | 'builder'>('list');
@@ -83,6 +91,13 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
   // Search State for List
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Profitability UI State
+  const [showShoppingList, setShowShoppingList] = useState(false);
+  const [shoppingListData, setShoppingListData] = useState<any>(null);
+  const [showKitchenSheet, setShowKitchenSheet] = useState(false);
+  const [kitchenSheetData, setKitchenSheetData] = useState<any>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Load selected event into form
   useEffect(() => {
@@ -261,6 +276,62 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     
     if (formData.id) {
       await updateEventStatus(formData.id, newStatus);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!formData.id) return;
+    if (!confirm(t("duplicate_confirm") || "Are you sure you want to duplicate this event? prices will be recalculated based on current inventory costs.")) return;
+
+    setIsLoading(true);
+    const res = await duplicateEvent(formData.id, orgId);
+    
+    if (res.error) {
+       setIsLoading(false);
+       alert("Error duplicating: " + res.error);
+    } else {
+       // Success!
+       // 1. Locally add the new event to list (optional, but good for instant feedback)
+       if (res.newEvent) {
+          setEvents(prev => [...prev, res.newEvent]);
+       }
+       
+       // 2. Refresh router to ensure server sync
+       router.refresh();
+
+       // 3. Switch to the new event
+       setSelectedEventId(res.newEventId);
+       setIsLoading(false);
+       
+       // Note: useEffect dependency on selectedEventId will trigger form update
+    }
+  };
+
+  const handleShoppingList = async () => {
+    if (!formData.id) return;
+    setIsGenerating(true);
+    const res = await generateShoppingList(formData.id);
+    setIsGenerating(false);
+
+    if (res.error) {
+      alert("Error: " + res.error);
+    } else {
+      setShoppingListData(res.data);
+      setShowShoppingList(true);
+    }
+  };
+
+  const handleKitchenSheet = async () => {
+    if (!formData.id) return;
+    setIsGenerating(true);
+    const res = await generateKitchenSheet(formData.id);
+    setIsGenerating(false);
+
+    if (res.error) {
+      alert("Error: " + res.error);
+    } else {
+      setKitchenSheetData(res.data);
+      setShowKitchenSheet(true);
     }
   };
 
@@ -473,6 +544,66 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                {isLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 mr-2"/>}
                Save
             </Button>
+
+            {/* Actions Menu */}
+            {formData.id && (
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
+                 <Button
+                    variant="outline"
+                    size="icon"
+                    title="Duplicate Event"
+                    onClick={handleDuplicate}
+                    disabled={isLoading}
+                 >
+                    <Copy className="w-4 h-4 text-slate-600" />
+                 </Button>
+                 
+                 <Dialog>
+                    <DialogTrigger asChild>
+                       <Button variant="outline" className="gap-2">
+                          <FileText className="w-4 h-4" />
+                          Reports
+                       </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                       <DialogHeader>
+                          <DialogTitle>Event Reports</DialogTitle>
+                       </DialogHeader>
+                       <div className="grid gap-4 py-4">
+                          <Button 
+                            variant="outline" 
+                            className="justify-start h-auto py-4 px-4 gap-4"
+                            onClick={handleShoppingList}
+                            disabled={isGenerating}
+                          >
+                             <div className="bg-blue-100 p-2 rounded-full">
+                                <ShoppingCart className="w-5 h-5 text-blue-600" />
+                             </div>
+                             <div className="text-left">
+                                <div className="font-semibold text-slate-900">Shopping List</div>
+                                <div className="text-xs text-slate-500">Calculate ingredients to buy based on stock</div>
+                             </div>
+                          </Button>
+
+                          <Button 
+                            variant="outline" 
+                            className="justify-start h-auto py-4 px-4 gap-4"
+                            onClick={handleKitchenSheet}
+                            disabled={isGenerating}
+                          >
+                             <div className="bg-orange-100 p-2 rounded-full">
+                                <ChefHat className="w-5 h-5 text-orange-600" />
+                             </div>
+                             <div className="text-left">
+                                <div className="font-semibold text-slate-900">Kitchen Sheet</div>
+                                <div className="text-xs text-slate-500">Quantities for preparation (no prices)</div>
+                             </div>
+                          </Button>
+                       </div>
+                    </DialogContent>
+                 </Dialog>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -833,6 +964,132 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           </div>
         </div>
       </div>
+      {/* Shopping List Modal */}
+      <Dialog open={showShoppingList} onOpenChange={setShowShoppingList}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-blue-600" />
+              Shopping List
+            </DialogTitle>
+          </DialogHeader>
+          
+          {shoppingListData && (
+            <div className="space-y-6">
+               <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg">
+                  <div>
+                    <h3 className="font-bold text-lg">{shoppingListData.eventName}</h3>
+                    <div className="text-sm text-slate-500">{new Date(shoppingListData.eventDate).toLocaleDateString()} • {shoppingListData.guestCount} Guests</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-500 uppercase font-bold">Total Est. Cost</div>
+                    <div className="text-2xl font-bold text-emerald-600">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: shoppingListData.currency || 'USD' }).format(shoppingListData.totalEstimatedCost)}
+                    </div>
+                  </div>
+               </div>
+
+               <div className="border rounded-lg overflow-hidden">
+                 <table className="w-full text-sm">
+                   <thead className="bg-slate-100 text-slate-600 font-semibold border-b">
+                     <tr>
+                       <th className="text-left p-3">Ingredient</th>
+                       <th className="text-right p-3">Needed</th>
+                       <th className="text-right p-3">In Stock</th>
+                       <th className="text-right p-3 bg-blue-50 text-blue-700">To Buy</th>
+                       <th className="text-right p-3">Est. Cost</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y">
+                     {shoppingListData.items.map((item: any, i: number) => (
+                       <tr key={i} className="hover:bg-slate-50">
+                         <td className="p-3 font-medium text-slate-900">{item.name}</td>
+                         <td className="p-3 text-right">{item.totalNeeded} {item.unit}</td>
+                         <td className="p-3 text-right text-slate-500">{item.currentStock} {item.unit}</td>
+                         <td className={`p-3 text-right font-bold ${item.toBuy > 0 ? 'text-blue-600 bg-blue-50' : 'text-slate-400'}`}>
+                           {item.toBuy > 0 ? item.toBuy : '✓ Stock'} {item.toBuy > 0 && item.unit}
+                         </td>
+                         <td className="p-3 text-right text-slate-600">
+                           {item.estimatedCost > 0 
+                             ? new Intl.NumberFormat('en-US', { style: 'currency', currency: shoppingListData.currency || 'USD' }).format(item.estimatedCost)
+                             : '-'
+                           }
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+               
+               <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => window.print()}>
+                     <Printer className="w-4 h-4 mr-2" />
+                     Print
+                  </Button>
+                  <Button onClick={() => setShowShoppingList(false)}>Close</Button>
+               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Kitchen Sheet Modal */}
+      <Dialog open={showKitchenSheet} onOpenChange={setShowKitchenSheet}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ChefHat className="w-5 h-5 text-orange-600" />
+              Kitchen Prep Sheet
+            </DialogTitle>
+          </DialogHeader>
+          
+          {kitchenSheetData && (
+            <div className="space-y-6">
+               <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
+                  <h3 className="font-bold text-xl text-orange-900">{kitchenSheetData.eventName}</h3>
+                  <div className="text-sm text-orange-700 mt-1">
+                    Date: {new Date(kitchenSheetData.eventDate).toLocaleDateString()}
+                    <span className="mx-2">•</span>
+                    Prep for: <span className="font-bold">{kitchenSheetData.guestCount} Guests</span>
+                  </div>
+               </div>
+
+               <div className="border rounded-lg overflow-hidden">
+                 <table className="w-full text-sm">
+                   <thead className="bg-slate-100 text-slate-600 font-semibold border-b">
+                     <tr>
+                       <th className="text-left p-3">Ingredient</th>
+                       <th className="text-right p-3">Total Quantity</th>
+                       <th className="text-left p-3 w-20">Unit</th>
+                       <th className="text-center p-3 w-20">Check</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y">
+                     {kitchenSheetData.items.map((item: any, i: number) => (
+                       <tr key={i} className="hover:bg-slate-50">
+                         <td className="p-3 font-medium text-slate-900 text-base">{item.name}</td>
+                         <td className="p-3 text-right font-bold font-mono text-lg">{item.totalNeeded}</td>
+                         <td className="p-3 text-slate-500">{item.unit}</td>
+                         <td className="p-3 text-center">
+                           <div className="w-6 h-6 border-2 border-slate-300 rounded mx-auto"></div>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+
+               <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => window.print()}>
+                     <Printer className="w-4 h-4 mr-2" />
+                     Print
+                  </Button>
+                  <Button onClick={() => setShowKitchenSheet(false)}>Close</Button>
+               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

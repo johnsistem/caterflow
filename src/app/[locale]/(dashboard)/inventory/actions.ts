@@ -2,13 +2,12 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { recalculateAllRecipesWithIngredient } from "../events/actions";
 
 export async function getIngredients(orgId: string) {
   const supabase = await createClient();
 
   // Fetch ingredients with their latest price change
-  // Note: We can't strictly limit inner joins in supabase-js easily for 'latest one' without some gymnastics or helper function.
-  // We'll fetch the history and sort in JS for simplicity unless the dataset is huge.
   const { data, error } = await supabase
     .from("Ingredient")
     .select(`
@@ -82,6 +81,15 @@ export async function upsertIngredient(formData: FormData, orgId: string) {
         newCost: cost,
         createdAt: new Date().toISOString()
       });
+
+      // TRIGGER CASCADE RECALCULATION
+      // Update recipes and DRAFT events
+      console.log(`Triggering recalculation for ingredient ${id}`);
+      try {
+        await recalculateAllRecipesWithIngredient(id);
+      } catch (err) {
+        console.error("Failed to recalculate recipes:", err);
+      }
     }
 
     const { error } = await supabase
