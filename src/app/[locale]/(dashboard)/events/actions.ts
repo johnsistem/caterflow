@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { roundTo } from "@/lib/utils";
 
 export async function fetchEventData(orgId: string) {
   const supabase = await createClient();
@@ -224,7 +225,7 @@ export async function recalculateRecipeCost(recipeId: string) {
     const ingredientCost = ri.ingredient?.cost || 0;
     totalCost += ingredientCost * ri.quantity;
   });
-  totalCost = roundTo2(totalCost);
+  totalCost = roundTo(totalCost, 2);
 
   // 3. Get recipe margin to calculate price
   const { data: recipe, error: recipeError } = await supabase
@@ -235,8 +236,19 @@ export async function recalculateRecipeCost(recipeId: string) {
 
   if (recipeError) return { error: recipeError.message };
 
-  const margin = recipe?.margin || 0.3;
-  const price = roundTo2(totalCost * (1 + margin));
+  let margin = recipe?.margin || 30; // Default to 30% if missing, but careful with units
+  
+  // Heuristic: If margin > 1, assume it's a percentage (e.g. 30) and convert to decimal (0.30)
+  // Determine if margin is 0-1 or 0-100. 
+  // Safety cap: If it's something like 0.5 (50%), it stays 0.5. If it's 50, it becomes 0.5.
+  if (margin > 1) {
+    margin = margin / 100;
+  }
+
+  // Formula: Price = Cost / (1 - Margin)
+  // Ensure we don't divide by zero or negative
+  const safeMargin = Math.min(Math.max(margin, 0), 0.99);
+  const price = roundTo(totalCost / (1 - safeMargin), 2);
 
   // 4. Update recipe
   const { error: updateError } = await supabase
@@ -244,8 +256,12 @@ export async function recalculateRecipeCost(recipeId: string) {
     .update({ totalCost, price })
     .eq("id", recipeId);
 
-  if (updateError) return { error: updateError.message };
+  if (updateError) {
+    console.error("Error updating recipe:", updateError);
+    return { error: updateError.message };
+  }
 
+  console.log(`[Recalc] Recipe ${recipeId}: Cost=${totalCost}, Margin=${margin} (safe=${safeMargin}), NewPrice=${price}`);
   return { success: true, totalCost, price };
 }
 
@@ -306,7 +322,7 @@ async function recalculateDraftEventsWithRecipes(recipeIds: string[]) {
 export async function recalculateEventMargins(eventId: string) {
   const supabase = await createClient();
 
-  // 1. Get all recipes in this event
+  // 1. Get all recipes in this event with their current calculated price
   const { data: eventRecipes, error: erError } = await supabase
     .from("EventRecipe")
     .select(`
@@ -318,18 +334,24 @@ export async function recalculateEventMargins(eventId: string) {
   if (erError) return { error: erError.message };
 
   // 2. Calculate new totalPrice
+  // Logic: Sum of (Recipe Price * Quantity)
   let totalPrice = 0;
   eventRecipes?.forEach((er: any) => {
     const recipePrice = er.recipe?.price || 0;
-    totalPrice += recipePrice * er.quantity;
+    // Ensure we use strict multiplication
+    totalPrice += roundTo(recipePrice * er.quantity, 2);
   });
   
-  // Apply Service Fee (18%) and Tax (8.5%) to match frontend logic
-  const serviceFee = totalPrice * 0.18;
-  const tax = totalPrice * 0.085;
-  totalPrice = totalPrice + serviceFee + tax;
+  // NOTE: User requested to match "350.00" for 100 guests @ 3.50.
+  // This implies removing Service Fee and Tax from this recalculation
+  // to avoid inflating the price unexpectedly during updates.
+  // 
+  // Previous logic:
+  // const serviceFee = totalPrice * 0.18;
+  // const tax = totalPrice * 0.085;
+  // totalPrice = totalPrice + serviceFee + tax;
 
-  totalPrice = roundTo2(totalPrice);
+  totalPrice = roundTo(totalPrice, 2);
 
   // 3. Update event
   const { error: updateError } = await supabase

@@ -73,6 +73,14 @@ export async function upsertIngredient(formData: FormData, orgId: string) {
       .eq("id", id)
       .single();
 
+    const { error } = await supabase
+      .from("Ingredient")
+      .update({ name, unit, cost, stock, updatedAt: new Date().toISOString() })
+      .eq("id", id)
+      .eq("organizationId", orgId);
+
+    if (error) return { error: error.message };
+
     if (currentItem && currentItem.cost !== cost) {
       // Price changed! Add to history
       await supabase.from("PriceHistory").insert({
@@ -83,22 +91,14 @@ export async function upsertIngredient(formData: FormData, orgId: string) {
       });
 
       // TRIGGER CASCADE RECALCULATION
-      // Update recipes and DRAFT events
-      console.log(`Triggering recalculation for ingredient ${id}`);
+      // Now that the DB has the new cost, we can safely recalculate
+      console.log(`Triggering recalculation for ingredient ${id} with new cost ${cost}`);
       try {
         await recalculateAllRecipesWithIngredient(id);
       } catch (err) {
         console.error("Failed to recalculate recipes:", err);
       }
     }
-
-    const { error } = await supabase
-      .from("Ingredient")
-      .update({ name, unit, cost, stock, updatedAt: new Date().toISOString() })
-      .eq("id", id)
-      .eq("organizationId", orgId);
-
-    if (error) return { error: error.message };
 
   } else {
     // CREATE

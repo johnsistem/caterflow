@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { roundTo } from "@/lib/utils";
 
 // ... existing fetchIngredients ...
 
@@ -83,36 +84,43 @@ export async function saveRecipe(data: {
 }) {
   const supabase = await createClient();
 
+  // Enforce mathematical precision
+  const safeData = {
+    ...data,
+    totalCost: roundTo(data.totalCost, 2),
+    price: roundTo(data.price, 2),
+    margin: roundTo(data.margin, 4)
+  };
+
   // If ID exists, it's an UPDATE. Otherwise, INSERT.
-  if (data.id) {
+  if (safeData.id) {
     // 1. Update Recipe fields
     const { error: updateError } = await supabase
       .from("Recipe")
       .update({
-        name: data.name,
-        description: data.description,
-        category: data.category || "Main",
-        margin: data.margin,
-        totalCost: data.totalCost,
-        price: data.price
+        name: safeData.name,
+        description: safeData.description,
+        category: safeData.category || "Main",
+        margin: safeData.margin,
+        totalCost: safeData.totalCost,
+        price: safeData.price
       })
-      .eq("id", data.id);
+      .eq("id", safeData.id);
 
     if (updateError) return { error: updateError.message };
 
     // 2. Sync Ingredients: Simplest way is Delete All + Re-insert
-    // (Or be smart and diff, but re-insert is safer/easier for this scale)
     const { error: deleteError } = await supabase
       .from("RecipeIngredient")
       .delete()
-      .eq("recipeId", data.id);
+      .eq("recipeId", safeData.id);
 
     if (deleteError) return { error: deleteError.message };
 
     // 3. Insert new set
-    if (data.ingredients.length > 0) {
-      const ingredientsToInsert = data.ingredients.map(ing => ({
-        recipeId: data.id,
+    if (safeData.ingredients.length > 0) {
+      const ingredientsToInsert = safeData.ingredients.map(ing => ({
+        recipeId: safeData.id,
         ingredientId: ing.id,
         quantity: ing.quantity
       }));
@@ -125,28 +133,28 @@ export async function saveRecipe(data: {
     }
 
     revalidatePath("/(dashboard)/recipes");
-    return { success: true, recipeId: data.id };
+    return { success: true, recipeId: safeData.id };
 
   } else {
     // CREATE NEW
     const { data: recipeData, error: recipeError } = await supabase
       .from("Recipe")
       .insert({
-        organizationId: data.orgId,
-        name: data.name,
-        description: data.description,
-        category: data.category || "Main",
-        margin: data.margin,
-        totalCost: data.totalCost,
-        price: data.price
+        organizationId: safeData.orgId,
+        name: safeData.name,
+        description: safeData.description,
+        category: safeData.category || "Main",
+        margin: safeData.margin,
+        totalCost: safeData.totalCost,
+        price: safeData.price
       })
       .select("id")
       .single();
 
     if (recipeError) return { error: recipeError.message };
 
-    if (data.ingredients.length > 0) {
-      const ingredientsToInsert = data.ingredients.map(ing => ({
+    if (safeData.ingredients.length > 0) {
+      const ingredientsToInsert = safeData.ingredients.map(ing => ({
         recipeId: recipeData.id,
         ingredientId: ing.id,
         quantity: ing.quantity

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { useTranslations } from "next-intl";
 import { saveRecipe, getRecipeDetails } from "./actions";
+import { roundTo } from "@/lib/utils";
 
 // Types
 type Ingredient = {
@@ -81,9 +82,17 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
   const [isSaving, setIsSaving] = useState(false);
 
   // Financial Calculations
-  const totalCost = selectedIngredients.reduce((sum, item) => sum + (item.quantity * item.cost), 0);
+  // Financial Calculations
+  const totalCost = roundTo(
+    selectedIngredients.reduce((sum, item) => sum + roundTo(item.quantity * item.cost, 2), 0),
+    2
+  );
+  
   const costPerPortion = yieldPortions > 0 ? totalCost / yieldPortions : 0;
-  const sellPrice = marginPercent < 100 ? costPerPortion / (1 - marginPercent / 100) : 0;
+  
+  // Calculate price based on TOTAL cost to ensure margin integrity on the batch
+  const totalTargetPrice = marginPercent < 100 ? totalCost / (1 - marginPercent / 100) : 0;
+  const sellPrice = yieldPortions > 0 ? roundTo(totalTargetPrice / yieldPortions, 2) : 0;
 
   const handleCreateNew = () => {
     // Reset state
@@ -473,7 +482,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                           ${item.cost.toFixed(2)}
                         </td>
                         <td className="py-3 px-2 text-right font-semibold text-sm text-slate-900 dark:text-white">
-                          ${(item.quantity * item.cost).toFixed(2)}
+                          ${roundTo(item.quantity * item.cost, 2).toFixed(2)}
                         </td>
                         <td className="py-3 px-2 text-center">
                           <Button 

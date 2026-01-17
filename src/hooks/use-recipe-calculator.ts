@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { roundTo } from '@/lib/utils';
 
 export interface IngredientItem {
   id: string;
@@ -28,18 +29,21 @@ export function useRecipeCalculator(initialIngredients: IngredientItem[] = [], i
 
   const calculations = useMemo(() => {
     const totalCost = ingredients.reduce(
-      (acc, item) => acc + item.costPerUnit * item.quantity,
+      (acc, item) => acc + roundTo(item.costPerUnit * item.quantity, 2),
       0
     );
+    
+    // Ensure totalCost is rounded consistently
+    const roundedTotalCost = roundTo(totalCost, 2);
     
     // Calculate price based on desired margin: Price = Cost / (1 - Margin%)
     // Example: Cost 70, Margin 30% -> Price = 70 / 0.7 = 100
     const safeMargin = Math.min(Math.max(margin, 0), 0.99);
-    const suggestedPrice = totalCost / (1 - safeMargin);
-    const profit = suggestedPrice - totalCost;
+    const suggestedPrice = roundTo(roundedTotalCost / (1 - safeMargin), 2);
+    const profit = roundTo(suggestedPrice - roundedTotalCost, 2);
 
     return {
-      totalCost,
+      totalCost: roundedTotalCost,
       suggestedPrice,
       profit,
     };
