@@ -7,6 +7,7 @@
     "clients": "Clients",
     "financials": "Financials",
     "settings": "Settings",
+    "logout": "Logout",
     "subtitle": "Premium Catering SaaS"
   },
   "Dashboard": {
@@ -139,7 +140,14 @@
       "suggested_price_3x": "Suggested Price (3x)",
       "price_portion": "Price Per Portion",
       "margin": "Margin",
-      "view_sheet": "View Production Sheet"
+      "view_sheet": "View Production Sheet",
+      "margin_info": {
+        "title": "Markup or Margin?",
+        "body": "In CaterFlow we calculate Utility Margin, not Markup.",
+        "markup": "Markup: Adds a percentage to your cost.",
+        "margin": "Margin: Ensures a percentage of the FINAL PRICE is your profit.",
+        "why": "Why is it better? Because taxes, commissions, and overheads are paid from the total sale. Calculating with Margin protects your real profits."
+      }
     },
     "categories": {
       "main": "Main Course",
@@ -157,12 +165,25 @@
   },
   "Events": {
     "title": "Event Details",
+    "list_title": "Events",
+    "list_description": "Manage all your upcoming catering events.",
+    "new_event": "New Event",
+    "search_placeholder": "Search events or clients...",
+    "back": "Back",
+    "confirm_event": "Confirm Event",
     "tabs": {
+      "upcoming": "Upcoming",
+      "past": "Past",
       "all": "All Items",
       "apps": "Appetizers",
       "mains": "Mains",
       "sides": "Sides",
       "beverages": "Beverages"
+    },
+    "status": {
+      "draft": "DRAFT",
+      "sent": "SENT",
+      "confirmed": "CONFIRMED"
     },
     "kpis": {
       "draft": "Draft",
@@ -173,11 +194,23 @@
     "guest_count": "Guest Count",
     "services": "Services & Menus",
     "add_item": "Add Item",
+    "no_items": "No items selected",
     "preview": "Live Preview",
     "quote_header": "QUOTE",
     "bill_to": "Prepared For",
     "event_date": "Event Date",
+    "breadcrumb": {
+      "events": "Events",
+      "new": "New Event"
+    },
     "table": {
+      "event_name": "EVENT NAME",
+      "client": "CLIENT",
+      "date": "DATE",
+      "guests": "GUESTS",
+      "status": "STATUS",
+      "total_value": "TOTAL VALUE",
+      "action": "ACTION",
       "description": "Description",
       "qty": "QTY",
       "price": "Price",
@@ -267,5 +300,53 @@
     "language": "Language",
     "english": "English",
     "spanish": "Spanish"
+  },
+  "Auth": {
+    "login": {
+      "title": "Log in to CaterFlow",
+      "description": "Enter your details below to manage your catering operations.",
+      "email": "Email Address",
+      "email_placeholder": "name@company.com",
+      "password": "Password",
+      "password_placeholder": "Enter your password",
+      "forgot_password": "Forgot Password?",
+      "submit": "Sign In",
+      "google": "Sign in with Google",
+      "no_account": "Don't have an account?",
+      "contact_admin": "Contact Admin"
+    },
+    "signup": {
+      "title": "Create your account",
+      "description": "Let's get started with your personal details to set up your workspace.",
+      "step1_title": "User Details",
+      "step2_title": "Business Details",
+      "step_count": "Step {current} of {total}",
+      "full_name": "Full Name",
+      "full_name_placeholder": "e.g. Sarah Mitchell",
+      "email": "Work Email",
+      "password": "Password",
+      "password_hint": "Must be at least 8 characters",
+      "continue": "Continue to Business Details",
+      "already_account": "Already have an account?",
+      "signin": "Sign In",
+      "business_title": "Tell us about your business",
+      "business_description": "Set your operational defaults to get started. You can update these settings later in your dashboard.",
+      "business_name": "Business Name",
+      "business_name_placeholder": "e.g. My Catering Co.",
+      "currency": "Default Currency",
+      "currency_hint": "Used for financial reports.",
+      "language": "Platform Language",
+      "language_hint": "Controls UI text language.",
+      "terms": "By completing setup, you agree to our {terms}. Your business currency cannot be changed after the first transaction.",
+      "terms_label": "Terms of Service",
+      "complete": "Complete Setup",
+      "back": "Back to Account Details"
+    },
+    "forgot": {
+      "title": "Forgot Password?",
+      "description": "No worries, we'll send you reset instructions.",
+      "submit": "Send Reset Link",
+      "back": "Back to Login"
+    }
   }
 }

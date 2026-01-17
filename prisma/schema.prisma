@@ -1,6 +1,5 @@
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -52,6 +51,7 @@ model Recipe {
   id             String           @id @default(uuid())
   name           String
   description    String?
+  category       String?          @default("Main") // Added field
   margin         Float            @default(0.3) // 30% default
   totalCost      Float            @default(0)   // Calculated
   price          Float            @default(0)   // Calculated based on margin
@@ -78,6 +78,7 @@ model Event {
   id             String        @id @default(uuid())
   name           String
   date           DateTime
+  guests         Int           @default(0) // Added field
   clientId       String
   client         Client        @relation(fields: [clientId], references: [id])
   recipes        EventRecipe[]
@@ -93,7 +94,8 @@ model EventRecipe {
   id       String @id @default(uuid())
   eventId  String
   recipeId String
-  servings Int    @default(1)
+  servings Int    @default(1) // Should match event guests generally
+  quantity Float  @default(1) // Added quantity just in case we need multiplier
   event    Event  @relation(fields: [eventId], references: [id])
   recipe   Recipe @relation(fields: [recipeId], references: [id])
 }
@@ -103,6 +105,8 @@ model Client {
   name           String
   email          String
   phone          String?
+  type           String       @default("private") // corporate, private, institutional
+  address        String?
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   events         Event[]

@@ -7,6 +7,7 @@
     "clients": "Clientes",
     "financials": "Finanzas",
     "settings": "Ajustes",
+    "logout": "Cerrar Sesión",
     "subtitle": "SaaS de Catering Premium"
   },
   "Dashboard": {
@@ -139,7 +140,14 @@
       "suggested_price_3x": "Precio Sugerido (3x)",
       "price_portion": "Precio por Porción",
       "margin": "Margen",
-      "view_sheet": "Ver Hoja de Producción"
+      "view_sheet": "Ver Hoja de Producción",
+      "margin_info": {
+        "title": "¿Markup o Margen?",
+        "body": "En CaterFlow calculamos el Margen de Utilidad, no el Markup.",
+        "markup": "Markup: Suma un porcentaje a tu costo.",
+        "margin": "Margen: Asegura que un porcentaje del PRECIO FINAL sea tu ganancia.",
+        "why": "¿Por qué es mejor? Porque tus impuestos, comisiones y gastos operativos se pagan del total de la venta. Calcular con Margen protege tus beneficios reales ante imprevistos o descuentos."
+      }
     },
     "categories": {
       "main": "Plato Principal",
@@ -157,12 +165,25 @@
   },
   "Events": {
     "title": "Detalles del Evento",
+    "list_title": "Eventos",
+    "list_description": "Gestiona todos tus próximos eventos de catering.",
+    "new_event": "Nuevo Evento",
+    "search_placeholder": "Buscar eventos o clientes...",
+    "back": "Volver",
+    "confirm_event": "Confirmar Evento",
     "tabs": {
+      "upcoming": "Próximos",
+      "past": "Pasados",
       "all": "Todos",
       "apps": "Entrantes",
       "mains": "Principales",
       "sides": "Guarniciones",
       "beverages": "Bebidas"
+    },
+    "status": {
+      "draft": "BORRADOR",
+      "sent": "ENVIADO",
+      "confirmed": "CONFIRMADO"
     },
     "kpis": {
       "draft": "Borrador",
@@ -173,11 +194,23 @@
     "guest_count": "Nº Invitados",
     "services": "Servicios y Menús",
     "add_item": "Añadir Ítem",
+    "no_items": "No hay ítems seleccionados",
     "preview": "Vista Previa",
     "quote_header": "COTIZACIÓN",
     "bill_to": "Preparado Para",
     "event_date": "Fecha del Evento",
+    "breadcrumb": {
+      "events": "Eventos",
+      "new": "Nuevo Evento"
+    },
     "table": {
+      "event_name": "NOMBRE EVENTO",
+      "client": "CLIENTE",
+      "date": "FECHA",
+      "guests": "INVITADOS",
+      "status": "ESTADO",
+      "total_value": "VALOR TOTAL",
+      "action": "ACCIÓN",
       "description": "Descripción",
       "qty": "CANT",
       "price": "Precio",
@@ -267,5 +300,53 @@
     "language": "Idioma",
     "english": "Inglés",
     "spanish": "Español"
+  },
+  "Auth": {
+    "login": {
+      "title": "Inicia sesión en CaterFlow",
+      "description": "Ingresa tus datos a continuación para gestionar tus operaciones de catering.",
+      "email": "Correo Electrónico",
+      "email_placeholder": "nombre@empresa.com",
+      "password": "Contraseña",
+      "password_placeholder": "Ingresa tu contraseña",
+      "forgot_password": "¿Olvidaste tu contraseña?",
+      "submit": "Iniciar Sesión",
+      "google": "Iniciar sesión con Google",
+      "no_account": "¿No tienes una cuenta?",
+      "contact_admin": "Contactar al Administrador"
+    },
+    "signup": {
+      "title": "Crea tu cuenta",
+      "description": "Comencemos con tus datos personales para configurar tu espacio de trabajo.",
+      "step1_title": "Datos del Usuario",
+      "step2_title": "Datos de la Empresa",
+      "step_count": "Paso {current} de {total}",
+      "full_name": "Nombre Completo",
+      "full_name_placeholder": "ej. Sarah Mitchell",
+      "email": "Correo de Trabajo",
+      "password": "Contraseña",
+      "password_hint": "Debe tener al menos 8 caracteres",
+      "continue": "Continuar a Detalles del Negocio",
+      "already_account": "¿Ya tienes una cuenta?",
+      "signin": "Inicia Sesión",
+      "business_title": "Cuéntanos sobre tu negocio",
+      "business_description": "Establece tus valores predeterminados para comenzar. Puedes actualizar estos ajustes más tarde en tu panel.",
+      "business_name": "Nombre del Negocio",
+      "business_name_placeholder": "ej. Mi Catering Co.",
+      "currency": "Moneda Predeterminada",
+      "currency_hint": "Usada para reportes financieros.",
+      "language": "Idioma de la Plataforma",
+      "language_hint": "Controla el idioma del texto de la interfaz.",
+      "terms": "Al completar la configuración, aceptas nuestros {terms}. La moneda de tu negocio no se puede cambiar después de la primera transacción.",
+      "terms_label": "Términos de Servicio",
+      "complete": "Completar Configuración",
+      "back": "Volver a Detalles de la Cuenta"
+    },
+    "forgot": {
+      "title": "¿Olvidaste tu Contraseña?",
+      "description": "No te preocupes, te enviaremos instrucciones para restablecerla.",
+      "submit": "Enviar Enlace de Restablecimiento",
+      "back": "Volver al Inicio de Sesión"
+    }
   }
 }
