@@ -160,3 +160,31 @@ export async function updateEventStatus(eventId: string, status: string) {
   revalidatePath("/(dashboard)/dashboard");
   return { success: true };
 }
+
+export async function deleteEvent(eventId: string) {
+  const supabase = await createClient();
+  
+  // Hard delete (Physical delete)
+  // Cascading deletes usually handled by DB, but here EventRecipe has FK to Event.
+  // We'll delete recipes first to be safe, then the event.
+  
+  // 1. Delete EventRecipes
+  const { error: recipesError } = await supabase
+    .from("EventRecipe")
+    .delete()
+    .eq("eventId", eventId);
+    
+  if (recipesError) return { error: recipesError.message };
+
+  // 2. Delete Event
+  const { error } = await supabase
+    .from("Event")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) return { error: error.message };
+  
+  revalidatePath("/(dashboard)/events");
+  revalidatePath("/(dashboard)/dashboard");
+  return { success: true };
+}

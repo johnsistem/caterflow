@@ -165,12 +165,25 @@
   },
   "Events": {
     "title": "Detalles del Evento",
+    "list_title": "Eventos",
+    "list_description": "Gestiona todos tus próximos eventos de catering.",
+    "new_event": "Nuevo Evento",
+    "search_placeholder": "Buscar eventos o clientes...",
+    "back": "Volver",
+    "confirm_event": "Confirmar Evento",
     "tabs": {
+      "upcoming": "Próximos",
+      "past": "Pasados",
       "all": "Todos",
       "apps": "Entrantes",
       "mains": "Principales",
       "sides": "Guarniciones",
       "beverages": "Bebidas"
+    },
+    "status": {
+      "draft": "BORRADOR",
+      "sent": "ENVIADO",
+      "confirmed": "CONFIRMADO"
     },
     "kpis": {
       "draft": "Borrador",
@@ -186,7 +199,18 @@
     "quote_header": "COTIZACIÓN",
     "bill_to": "Preparado Para",
     "event_date": "Fecha del Evento",
+    "breadcrumb": {
+      "events": "Eventos",
+      "new": "Nuevo Evento"
+    },
     "table": {
+      "event_name": "NOMBRE EVENTO",
+      "client": "CLIENTE",
+      "date": "FECHA",
+      "guests": "INVITADOS",
+      "status": "ESTADO",
+      "total_value": "VALOR TOTAL",
+      "action": "ACCIÓN",
       "description": "Descripción",
       "qty": "CANT",
       "price": "Precio",

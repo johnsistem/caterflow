@@ -24,7 +24,8 @@ import {
   ArrowLeft,
   ChevronRight,
   Filter,
-  MoreHorizontal
+  MoreHorizontal,
+  CheckCircle
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Separator } from "@/components/ui/separator";
@@ -43,7 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { upsertEvent, updateEventStatus } from "./actions";
+import { upsertEvent, updateEventStatus, deleteEvent } from "./actions";
 
 interface EventsClientProps {
   initialData: {
@@ -55,20 +56,18 @@ interface EventsClientProps {
 }
 
 export default function EventsClient({ initialData, orgId }: EventsClientProps) {
-  const t = useTranslations("Events"); // Assuming "Events" namespace exists
-  // Note: If translations are missing for table headers, we might need to rely on static text or user provided keys.
-  // Using generic "Events" translations or hardcoded for now as per "EventsList" request pattern.
-  
+  const t = useTranslations("Events");
   const { events: initialEvents, clients, recipes } = initialData;
 
   const [events, setEvents] = useState(initialEvents);
   
   // View State
   const [viewMode, setViewMode] = useState<'list' | 'builder'>('list');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
 
   // Builder State
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false); // Controls if the form inputs are editable or view-only in builder
+  const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Current Form State
@@ -178,8 +177,10 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     }));
   };
 
-  const handleSave = async () => {
+  const handleSave = async (targetStatus?: string) => {
     setIsLoading(true);
+    const finalStatus = targetStatus || formData.status;
+    
     const payload = {
       id: formData.id || undefined,
       orgId,
@@ -187,7 +188,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
       name: formData.name,
       date: formData.date,
       guests: formData.guests,
-      status: formData.status,
+      status: finalStatus,
       recipes: formData.selectedRecipes.map(r => ({ recipeId: r.recipeId, quantity: r.quantity }))
     };
 
@@ -197,38 +198,109 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     if (res.error) {
       alert("Error: " + res.error);
     } else {
-      // Reload or update local list? Reloading page is simplest to sync everything.
-      // But let's try to just go back to list for smoother UX if possible, 
-      // but we need to refresh data. 
-      // window.location.reload() was used before. Let's keep it for reliability.
+      // If we just sent a quote, give feedback
+      if (finalStatus === 'SENT' && formData.status !== 'SENT') {
+        alert("Quote sent successfully! Event status updated to SENT.");
+      }
       window.location.reload();
     }
   };
 
-  const toggleStatus = async (newStatus: string) => {
-    if (!formData.id) {
-       setFormData(prev => ({ ...prev, status: newStatus }));
+  const handleDelete = async () => {
+    if (!formData.id) return;
+    if (!confirm("Are you sure you want to permanently delete this draft? This action cannot be undone.")) return;
+    
+    setIsLoading(true);
+    const res = await deleteEvent(formData.id);
+    if (res?.error) {
+      setIsLoading(false);
+      alert("Error deleting: " + res.error);
+    } else {
+       window.location.reload();
+    }
+  };
+
+  const handleRemoveRecipe = (recipeId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedRecipes: prev.selectedRecipes.filter(r => r.recipeId !== recipeId)
+    }));
+  };
+
+  const handleStatusClick = async (targetStatus: string) => {
+    // Logic enforcement
+    const current = formData.status;
+    
+    // Prevent clicking current status
+    if (current === targetStatus) return;
+
+    // Logic: DRAFT -> SENT -> CONFIRMED
+    
+    if (targetStatus === 'CONFIRMED') {
+       // Allow confirming if Draft OR Sent, but warn if Draft.
+       if (current === 'DRAFT') {
+         const proceed = confirm("Wait! This event is still a DRAFT. Usually you should SEND the quote first. Do you really want to jump straight to CONFIRMED?");
+         if (!proceed) return;
+       }
+       
+       const confirmMsg = "Are you sure you want to CONFIRM this event? This will lock key financial details.";
+       if (!confirm(confirmMsg)) return;
+
+       // Proceed to update
+       await toggleStatus(targetStatus);
        return;
     }
+
+    // Default behavior for other transitions
+    await toggleStatus(targetStatus);
+  };
+
+  const toggleStatus = async (newStatus: string) => {
     // Optimistic update
     setFormData(prev => ({ ...prev, status: newStatus }));
-    await updateEventStatus(formData.id, newStatus);
+    
+    if (formData.id) {
+      await updateEventStatus(formData.id, newStatus);
+    }
   };
 
   const clientName = clients.find(c => c.id === formData.clientId)?.name || "Select Client";
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'CONFIRMED': return 'bg-emerald-100 text-emerald-700';
-      case 'SENT': return 'bg-blue-100 text-blue-700';
+      case 'CONFIRMED': return 'bg-[#10b981]/10 text-[#10b981]'; // Emerald
+      case 'SENT': return 'bg-blue-100 text-blue-700'; // Blue
       default: return 'bg-slate-100 text-slate-700';
     }
   };
 
-  const filteredEvents = events.filter(e => 
-    e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.client?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEvents = events.filter(e => {
+    const matchesSearch = e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          e.client?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const eventDate = new Date(e.date);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    // Normalize event date to remove time part for accurate comparison
+    const eventDateOnly = new Date(eventDate);
+    eventDateOnly.setHours(0,0,0,0);
+
+    let matchesTab = true;
+    if (activeTab === 'upcoming') {
+      matchesTab = eventDateOnly >= today;
+    } else {
+      matchesTab = eventDateOnly < today;
+    }
+
+    return matchesSearch && matchesTab;
+  });
+
+  // Helper for price formatting consistency
+  const fmtPrice = (amount: number) => {
+    // Ensure strict 2 decimals
+    return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
   // --- VIEW: LIST ---
   if (viewMode === 'list') {
@@ -236,16 +308,40 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8 p-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-white">Events</h1>
-            <p className="text-slate-500 mt-1">Manage all your upcoming catering events.</p>
+            <h1 className="text-4xl font-bold text-slate-900 dark:text-white">{t("list_title")}</h1>
+            <p className="text-slate-500 mt-1">{t("list_description")}</p>
           </div>
           <Button 
             className="bg-emerald-500 hover:bg-emerald-600 text-white"
             onClick={handleCreateNew}
           >
             <Plus className="w-4 h-4 mr-2" />
-            New Event
+            {t("new_event")}
           </Button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-1 mb-6 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab('upcoming')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+              activeTab === 'upcoming' 
+                ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {t("tabs.upcoming")}
+          </button>
+          <button
+            onClick={() => setActiveTab('past')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+              activeTab === 'past' 
+                ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {t("tabs.past")}
+          </button>
         </div>
 
         <Card className="border-slate-200 dark:border-slate-800">
@@ -254,7 +350,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
               <div className="relative max-w-sm w-full">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input 
-                  placeholder="Search events or clients..." 
+                  placeholder={t("search_placeholder")}
                   className="pl-9 bg-slate-50 dark:bg-slate-900"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -272,13 +368,13 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 uppercase font-semibold">
                   <tr>
-                    <th className="text-left py-4 px-6 rounded-tl-lg">Event Name</th>
-                    <th className="text-left py-4 px-6">Client</th>
-                    <th className="text-left py-4 px-6">Date</th>
-                    <th className="text-center py-4 px-6">Guests</th>
-                    <th className="text-center py-4 px-6">Status</th>
-                    <th className="text-right py-4 px-6">Total Value</th>
-                    <th className="text-right py-4 px-6 rounded-tr-lg">Action</th>
+                    <th className="text-left py-4 px-6 rounded-tl-lg">{t("table.event_name")}</th>
+                    <th className="text-left py-4 px-6">{t("table.client")}</th>
+                    <th className="text-left py-4 px-6">{t("table.date")}</th>
+                    <th className="text-center py-4 px-6">{t("table.guests")}</th>
+                    <th className="text-center py-4 px-6">{t("table.status")}</th>
+                    <th className="text-right py-4 px-6">{t("table.total_value")}</th>
+                    <th className="text-right py-4 px-6 rounded-tr-lg">{t("table.action")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -308,11 +404,11 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                       </td>
                       <td className="py-4 px-6 text-center">
                         <Badge className={`${getStatusColor(evt.status)} border-0`}>
-                          {evt.status}
+                          {t("status." + evt.status.toLowerCase())}
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-right font-medium text-emerald-600">
-                        ${evt.totalPrice ? evt.totalPrice.toLocaleString(undefined, {minimumFractionDigits: 2}) : '0.00'}
+                        ${evt.totalPrice ? fmtPrice(evt.totalPrice) : '0.00'}
                       </td>
                       <td className="py-4 px-6 text-right">
                         <Button 
@@ -331,7 +427,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                   {filteredEvents.length === 0 && (
                     <tr>
                       <td colSpan={7} className="text-center py-12 text-slate-400">
-                        No events found matching your search.
+                        {t("no_items")}
                       </td>
                     </tr>
                   )}
@@ -353,18 +449,30 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           <div className="flex items-center gap-4">
             <Button variant="ghost" className="text-slate-500" onClick={handleBackToList}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
+              {t("back")}
             </Button>
-            <div className="h-6 w-px bg-slate-200"></div>
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-[#10b981] rounded-xl flex items-center justify-center">
-                <Utensils className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-slate-900 dark:text-white">CaterFlow</span>
-            </div>
           </div>
           <div className="flex items-center gap-4">
-            {/* Additional Header Actions if needed */}
+            {/* Conditional Trash Icon: Only for DRAFT */}
+            {formData.status === 'DRAFT' && formData.id && (
+              <Button 
+                variant="ghost" 
+                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                onClick={handleDelete}
+                title="Delete Draft"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+            
+            <Button 
+              onClick={() => handleSave(undefined)} 
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={isLoading}
+            >
+               {isLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 mr-2"/>}
+               Save
+            </Button>
           </div>
         </div>
       </div>
@@ -372,7 +480,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
       <div className="p-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
-          <span className="hover:text-slate-900 cursor-pointer" onClick={handleBackToList}>Events</span>
+          <span className="hover:text-slate-900 cursor-pointer" onClick={handleBackToList}>{t("breadcrumb.events")}</span>
           <ChevronRight className="w-4 h-4" />
           <span className="text-slate-900 font-medium">{formData.name}</span>
         </div>
@@ -394,22 +502,25 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                 </div>
             )}
             
+            {/* Interactive Status Indicators */}
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-full">
               {['DRAFT', 'SENT', 'CONFIRMED'].map(st => (
                 <button 
                   key={st}
-                  onClick={() => toggleStatus(st)}
+                  onClick={() => handleStatusClick(st)}
                   className={`px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm transition-all ${
                      formData.status === st 
                      ? 'bg-white dark:bg-slate-900 text-emerald-600' 
-                     : 'text-slate-500 hover:text-slate-700'
-                  }`}
+                     : 'text-slate-400 hover:text-slate-600'
+                  } ${formData.status === st ? 'cursor-default' : 'cursor-pointer'}`}
                 >
-                  {st}
+                  {st === 'CONFIRMED' && formData.status === 'SENT' ? '✓ ' : ''}
+                  {t("status." + st.toLowerCase())}
                 </button>
               ))}
             </div>
           </div>
+
           <div className="flex items-center gap-6 text-sm text-slate-600">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" />
@@ -537,9 +648,9 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                       </h4>
                       <p className="text-sm text-slate-500 mb-2">{item.details?.description}</p>
                     </div>
-                    <div className="flex items-center gap-8">
+                    <div className="flex items-center gap-6">
                       <div className="font-bold text-lg text-slate-900">
-                        ${item.details?.price?.toFixed(2)}
+                        ${fmtPrice(item.details?.price || 0)}
                       </div>
                       <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-full p-1">
                         <button 
@@ -558,6 +669,14 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                           <Plus className="w-3.5 h-3.5 text-emerald-600" />
                         </button>
                       </div>
+                      {/* Remove Button */}
+                      <button 
+                        onClick={() => handleRemoveRecipe(item.recipeId)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                        title="Remove Item"
+                      >
+                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -648,10 +767,10 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                            <div className="flex gap-4">
                               <span className="w-8 text-center text-slate-600">{item.quantity}</span>
                               <span className="w-12 text-right text-slate-600">
-                                ${(item.details?.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${fmtPrice(item.details?.price || 0)}
                               </span>
                               <span className="w-16 text-right font-bold text-slate-900">
-                                ${(item.quantity * (item.details?.price || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${fmtPrice(item.quantity * (item.details?.price || 0))}
                               </span>
                            </div>
                         </div>
@@ -668,19 +787,19 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                     <div className="flex justify-between">
                       <span className="text-slate-500 text-xs font-medium">{t("financials.subtotal")}</span>
                       <span className="font-bold text-slate-900">
-                        ${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        ${fmtPrice(subtotal)}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 text-xs font-medium">{t("financials.service_fee")} (18%)</span>
                       <span className="font-bold text-slate-900">
-                        ${serviceFee.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        ${fmtPrice(serviceFee)}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 text-xs font-medium">{t("financials.tax")} (8.5%)</span>
                       <span className="font-bold text-slate-900">
-                        ${tax.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        ${fmtPrice(tax)}
                       </span>
                     </div>
                   </div>
@@ -688,14 +807,14 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                   <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-100">
                     <span className="text-sm font-bold text-slate-900">{t("financials.total")}</span>
                     <span className="text-2xl font-extrabold text-[#10b981]">
-                      ${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      ${fmtPrice(grandTotal)}
                     </span>
                   </div>
 
                   {/* Main Action Button */}
                   <Button 
                     disabled={isLoading} 
-                    onClick={handleSave} 
+                    onClick={() => handleSave('SENT')} 
                     className="w-full mt-6 bg-[#10b981] hover:bg-emerald-600 text-white font-bold h-11 shadow-sm"
                   >
                     {isLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : (

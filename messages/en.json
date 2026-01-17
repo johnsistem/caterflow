@@ -165,12 +165,25 @@
   },
   "Events": {
     "title": "Event Details",
+    "list_title": "Events",
+    "list_description": "Manage all your upcoming catering events.",
+    "new_event": "New Event",
+    "search_placeholder": "Search events or clients...",
+    "back": "Back",
+    "confirm_event": "Confirm Event",
     "tabs": {
+      "upcoming": "Upcoming",
+      "past": "Past",
       "all": "All Items",
       "apps": "Appetizers",
       "mains": "Mains",
       "sides": "Sides",
       "beverages": "Beverages"
+    },
+    "status": {
+      "draft": "DRAFT",
+      "sent": "SENT",
+      "confirmed": "CONFIRMED"
     },
     "kpis": {
       "draft": "Draft",
@@ -186,7 +199,18 @@
     "quote_header": "QUOTE",
     "bill_to": "Prepared For",
     "event_date": "Event Date",
+    "breadcrumb": {
+      "events": "Events",
+      "new": "New Event"
+    },
     "table": {
+      "event_name": "EVENT NAME",
+      "client": "CLIENT",
+      "date": "DATE",
+      "guests": "GUESTS",
+      "status": "STATUS",
+      "total_value": "TOTAL VALUE",
+      "action": "ACTION",
       "description": "Description",
       "qty": "QTY",
       "price": "Price",
