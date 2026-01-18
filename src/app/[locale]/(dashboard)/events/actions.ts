@@ -18,7 +18,7 @@ export async function fetchEventData(orgId: string) {
       eventRecipes:EventRecipe(
         quantity,
         price,
-        recipe:Recipe(id, name, price, totalCost, category)
+        recipe:Recipe(id, name, price, totalCost, category, description)
       )
     `)
     .eq("organizationId", orgId)
@@ -476,7 +476,7 @@ export async function duplicateEvent(eventId: string, orgId: string) {
       client:Client(id, name),
       eventRecipes:EventRecipe(
         quantity,
-        recipe:Recipe(id, name, price, category)
+        recipe:Recipe(id, name, price, category, description)
       )
     `)
     .eq("id", newEventId)
