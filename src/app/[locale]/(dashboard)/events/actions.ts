@@ -17,7 +17,8 @@ export async function fetchEventData(orgId: string) {
       client:Client(id, name),
       eventRecipes:EventRecipe(
         quantity,
-        recipe:Recipe(id, name, price, category)
+        price,
+        recipe:Recipe(id, name, price, totalCost, category)
       )
     `)
     .eq("organizationId", orgId)
@@ -138,12 +139,13 @@ export async function upsertEvent(data: {
     eventId = newEvent.id;
   }
 
-  // Insert Relation
+  // Insert Relation with Price Snapshot
   if (data.recipes.length > 0 && eventId) {
     const relations = data.recipes.map(r => ({
       eventId: eventId,
       recipeId: r.recipeId,
-      quantity: r.quantity
+      quantity: r.quantity,
+      price: priceMap.get(r.recipeId) || 0 // Snapshot the price!
     }));
     
     const { error: relError } = await supabase.from("EventRecipe").insert(relations);
@@ -285,8 +287,8 @@ export async function recalculateAllRecipesWithIngredient(ingredientId: string) 
     if (result.success) updated++;
   }
 
-  // 3. Recalculate events that use these recipes (ONLY DRAFT)
-  await recalculateDraftEventsWithRecipes(uniqueRecipeIds);
+// 3. Recalculate events that use these recipes (ALL events, filtered by logic inside)
+  await recalculateRelatedEventsWithRecipes(uniqueRecipeIds);
 
   revalidatePath("/(dashboard)/recipes");
   revalidatePath("/(dashboard)/events");
@@ -295,26 +297,22 @@ export async function recalculateAllRecipesWithIngredient(ingredientId: string) 
   return { success: true, recipesUpdated: updated };
 }
 
-async function recalculateDraftEventsWithRecipes(recipeIds: string[]) {
+async function recalculateRelatedEventsWithRecipes(recipeIds: string[]) {
   const supabase = await createClient();
 
-  // Get all DRAFT events using any of these recipes
+  // Get all events using any of these recipes (Removed DRAFT filter)
   const { data: eventRecipes, error } = await supabase
     .from("EventRecipe")
-    .select("eventId, event:Event!inner(status)")
+    .select("eventId")
     .in("recipeId", recipeIds);
 
   if (error) return;
 
-  // Filter only DRAFT events
-  const draftEventIds = [...new Set(
-    eventRecipes
-      ?.filter((er: any) => er.event?.status === "DRAFT")
-      .map((er: any) => er.eventId) || []
-  )];
+  // Get unique Event IDs
+  const uniqueEventIds = [...new Set(eventRecipes?.map((er: any) => er.eventId) || [])];
 
-  // Recalculate each DRAFT event
-  for (const eventId of draftEventIds) {
+  // Recalculate each event
+  for (const eventId of uniqueEventIds) {
     await recalculateEventMargins(eventId);
   }
 }
@@ -322,46 +320,89 @@ async function recalculateDraftEventsWithRecipes(recipeIds: string[]) {
 export async function recalculateEventMargins(eventId: string) {
   const supabase = await createClient();
 
-  // 1. Get all recipes in this event with their current calculated price
-  const { data: eventRecipes, error: erError } = await supabase
-    .from("EventRecipe")
+  // 1. Get Event Details (Status & Guests) and Recipes
+  const { data: eventData, error: eventError } = await supabase
+    .from("Event")
     .select(`
-      quantity,
-      recipe:Recipe(id, price)
+      status,
+      totalPrice,
+      guests,
+      eventRecipes:EventRecipe(
+        quantity,
+        recipe:Recipe(id, price, totalCost, margin)
+      )
     `)
-    .eq("eventId", eventId);
+    .eq("id", eventId)
+    .single();
 
-  if (erError) return { error: erError.message };
+  if (eventError) return { error: eventError.message };
 
-  // 2. Calculate new totalPrice
-  // Logic: Sum of (Recipe Price * Quantity)
-  let totalPrice = 0;
+  const { status, eventRecipes, totalPrice: currentLockedPrice } = eventData;
+
+  // 2. Calculate Market Values (Real-time Cost & Price)
+  let marketCost = 0;
+  let marketPrice = 0;
+
   eventRecipes?.forEach((er: any) => {
-    const recipePrice = er.recipe?.price || 0;
-    // Ensure we use strict multiplication
-    totalPrice += roundTo(recipePrice * er.quantity, 2);
+    const qty = er.quantity;
+    const rPrice = er.recipe?.price || 0;
+    const rCost = er.recipe?.totalCost || 0;
+    
+    // Strict rounding
+    marketPrice += roundTo(rPrice * qty, 2);
+    marketCost += roundTo(rCost * qty, 2);
   });
   
-  // NOTE: User requested to match "350.00" for 100 guests @ 3.50.
-  // This implies removing Service Fee and Tax from this recalculation
-  // to avoid inflating the price unexpectedly during updates.
-  // 
-  // Previous logic:
-  // const serviceFee = totalPrice * 0.18;
-  // const tax = totalPrice * 0.085;
-  // totalPrice = totalPrice + serviceFee + tax;
+  marketPrice = roundTo(marketPrice, 2);
+  marketCost = roundTo(marketCost, 2);
 
-  totalPrice = roundTo(totalPrice, 2);
+  // 3. Decision Logic based on Status
+  if (status === "DRAFT") {
+    // DRAFT: Always update price to match market
+    if (marketPrice !== currentLockedPrice) {
+      const { error: updateError } = await supabase
+        .from("Event")
+        .update({ totalPrice: marketPrice })
+        .eq("id", eventId);
 
-  // 3. Update event
-  const { error: updateError } = await supabase
-    .from("Event")
-    .update({ totalPrice })
-    .eq("id", eventId);
+      if (updateError) return { error: updateError.message };
+      console.log(`[Price Update] Event ${eventId} (DRAFT): ${currentLockedPrice} -> ${marketPrice}`);
+    }
+  } else {
+    // SENT / CONFIRMED: Protect the Price (Price Protection Insurance)
+    // We DO NOT update totalPrice.
+    
+    // Check for Margin Squeeze (Alert Logic)
+    // Current Effective Margin = (LockedPrice - MarketCost) / LockedPrice
+    // Target Margin (Weighted Average or Minimum?) -> Let's simplisticly check if Price < MarketPrice
+    
+    const marginSqueeze = marketPrice > currentLockedPrice;
+    
+    if (marginSqueeze) {
+      const lostRevenue = roundTo(marketPrice - currentLockedPrice, 2);
+      const effectiveMargin = currentLockedPrice > 0 
+        ? roundTo((currentLockedPrice - marketCost) / currentLockedPrice, 2) 
+        : 0;
 
-  if (updateError) return { error: updateError.message };
+      console.warn(`[MARGIN ALERT] Event ${eventId} (${status}): Costs increased!`);
+      console.warn(` - Locked Price: $${currentLockedPrice}`);
+      console.warn(` - Market Price: $${marketPrice} (Loss: $${lostRevenue})`);
+      console.warn(` - New Effective Margin: ${(effectiveMargin * 100).toFixed(1)}%`);
+      
+      // OPTIONAL: If we had an 'alerts' column, we would save it here.
+      // Since we don't, this relies on the Frontend calculating "Market Price" vs "Total Price" to show the badge.
+    } else {
+      console.log(`[Price Protected] Event ${eventId} (${status}): Costs stable or improved.`);
+    }
+  }
 
-  return { success: true, totalPrice };
+  return { 
+    success: true, 
+    totalPrice: status === "DRAFT" ? marketPrice : currentLockedPrice,
+    marketPrice,
+    marketCost,
+    marginSqueeze: marketPrice > currentLockedPrice
+  };
 }
 
 // ============================================

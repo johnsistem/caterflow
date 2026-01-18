@@ -86,7 +86,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     date: new Date().toISOString().split('T')[0],
     guests: 50,
     status: "DRAFT",
-    selectedRecipes: [] as { recipeId: string; quantity: number; details?: any }[]
+    selectedRecipes: [] as { recipeId: string; quantity: number; priceSnapshot?: number; details?: any }[]
   });
 
   // Search State for List
@@ -115,6 +115,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
             selectedRecipes: evt.eventRecipes?.map((er: any) => ({
               recipeId: er.recipe.id,
               quantity: er.quantity,
+              priceSnapshot: er.price, // Loaded from EventRecipe snapshot
               details: er.recipe
             })) || []
           });
@@ -153,17 +154,41 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
   const calculateTotals = () => {
     let subtotal = 0;
+    let marketSubtotal = 0;
+    let marketCostTotal = 0;
+
     formData.selectedRecipes.forEach(item => {
-      const price = item.details?.price || 0;
-      subtotal += price * item.quantity;
+      // Logic: Use snapshot if not DRAFT, otherwise current recipe price
+      const lockedPrice = (formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null) 
+        ? item.priceSnapshot 
+        : (item.details?.price || 0);
+      
+      const marketPrice = item.details?.price || 0;
+      const marketCost = item.details?.totalCost || 0;
+
+      subtotal += lockedPrice * item.quantity;
+      marketSubtotal += marketPrice * item.quantity;
+      marketCostTotal += marketCost * item.quantity;
     });
+
     const serviceFee = subtotal * 0.18;
     const tax = subtotal * 0.085;
     const grandTotal = subtotal + serviceFee + tax;
-    return { subtotal, serviceFee, tax, grandTotal };
+
+    const marketGrandTotal = marketSubtotal + (marketSubtotal * 0.18) + (marketSubtotal * 0.085);
+    const lostRevenue = marketGrandTotal - grandTotal;
+    const currentMargin = grandTotal > 0 ? (grandTotal - marketCostTotal) / grandTotal : 0;
+    const originalMargin = marketGrandTotal > 0 ? (marketGrandTotal - marketCostTotal) / marketGrandTotal : 0;
+
+    return { 
+      subtotal, serviceFee, tax, grandTotal, 
+      marketGrandTotal, lostRevenue, 
+      currentMargin, originalMargin,
+      isSqueezed: lostRevenue > 0.01 && formData.status !== 'DRAFT'
+    };
   };
 
-  const { subtotal, serviceFee, tax, grandTotal } = calculateTotals();
+  const { subtotal, serviceFee, tax, grandTotal, marketGrandTotal, lostRevenue, currentMargin, originalMargin, isSqueezed } = calculateTotals();
 
   const handleAddRecipe = (recipeId: string) => {
     const recipe = recipes.find(r => r.id === recipeId);
@@ -176,7 +201,8 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
         ...prev,
         selectedRecipes: [...prev.selectedRecipes, {
           recipeId,
-          quantity: prev.guests, // Default to guest count!
+          quantity: prev.guests,
+          priceSnapshot: recipe.price, // Snapshot at the moment of adding
           details: recipe
         }]
       }));
@@ -734,6 +760,33 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
               </div>
             </div>
 
+            {/* Rentability Alert (Margin Squeeze) */}
+            {isSqueezed && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 animate-in slide-in-from-top duration-500">
+                <div className="flex gap-3">
+                  <div className="bg-amber-100 p-2 rounded-full h-fit">
+                    <Clock className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-amber-900 text-sm">Atención: Margen Reducido</h4>
+                    <p className="text-xs text-amber-700 leading-relaxed">
+                      El aumento en los costos de insumos ha reducido el margen de este presupuesto. 
+                      El precio para el cliente es de <span className="font-bold">${fmtPrice(grandTotal)}</span>, 
+                      pero si se cotizara hoy sería de <span className="font-bold">${fmtPrice(marketGrandTotal)}</span>.
+                    </p>
+                    <div className="flex gap-4 mt-2">
+                      <div className="text-[10px] uppercase font-bold text-amber-500">
+                        Margen Actual: <span className="text-red-600">{(currentMargin * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="text-[10px] uppercase font-bold text-amber-500">
+                        Perdiendo: <span className="text-red-600">${fmtPrice(lostRevenue)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Menu Selection */}
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -889,23 +942,29 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
                   {/* Items */}
                   <div className="space-y-3 mb-6 min-h-[100px]">
-                     {formData.selectedRecipes.map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm px-1">
-                           <div className="max-w-[140px]">
-                              <div className="font-bold text-slate-900 truncate">{item.details?.name}</div>
-                              <div className="text-xs text-slate-500 truncate">{item.details?.category || 'Item'}</div>
-                           </div>
-                           <div className="flex gap-4">
-                              <span className="w-8 text-center text-slate-600">{item.quantity}</span>
-                              <span className="w-12 text-right text-slate-600">
-                                ${fmtPrice(item.details?.price || 0)}
-                              </span>
-                              <span className="w-16 text-right font-bold text-slate-900">
-                                ${fmtPrice(item.quantity * (item.details?.price || 0))}
-                              </span>
-                           </div>
-                        </div>
-                     ))}
+                     {formData.selectedRecipes.map((item, i) => {
+                        const price = (formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null)
+                          ? item.priceSnapshot
+                          : (item.details?.price || 0);
+
+                        return (
+                          <div key={i} className="flex justify-between text-sm px-1">
+                             <div className="max-w-[140px]">
+                                <div className="font-bold text-slate-900 truncate">{item.details?.name}</div>
+                                <div className="text-xs text-slate-500 truncate">{item.details?.category || 'Item'}</div>
+                             </div>
+                             <div className="flex gap-4">
+                                <span className="w-8 text-center text-slate-600">{item.quantity}</span>
+                                <span className="w-12 text-right text-slate-600">
+                                  ${fmtPrice(price)}
+                                </span>
+                                <span className="w-16 text-right font-bold text-slate-900">
+                                  ${fmtPrice(item.quantity * price)}
+                                </span>
+                             </div>
+                          </div>
+                        );
+                     })}
                      {formData.selectedRecipes.length === 0 && (
                         <div className="text-center py-4 text-xs text-slate-400 italic">{t("no_items")}</div>
                      )}
