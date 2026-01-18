@@ -348,5 +348,34 @@
       "submit": "Send Reset Link",
       "back": "Back to Login"
     }
+  },
+  "Settings": {
+    "title": "Business Settings",
+    "description": "Configure your business identity and financial rules.",
+    "sections": {
+      "profile": {
+        "title": "Business Profile",
+        "org_name": "Organization Name",
+        "logo": "Business Logo",
+        "logo_hint": "Used in PDF quotes"
+      },
+      "localization": {
+        "title": "Localization",
+        "language": "Interface Language",
+        "currency": "Operating Currency",
+        "languages": {
+          "en": "English",
+          "es": "Spanish"
+        }
+      },
+      "defaults": {
+        "title": "Quote Configuration (Defaults)",
+        "tax": "Tax (VAT) %",
+        "service_fee": "Service Fee %",
+        "hint": "These values will be automatically applied to all new events."
+      }
+    },
+    "save_button": "Save Changes",
+    "success_message": "Settings updated successfully"
   }
 }

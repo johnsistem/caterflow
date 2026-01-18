@@ -13,6 +13,8 @@ model Organization {
   currency    String       @default("USD") // USD, NIO, MXN
   language    String       @default("es")  // es, en
   logoUrl     String?      // Para los presupuestos PDF
+  taxRate         Float        @default(0.0)   // Default Tax (IVA) percentage
+  serviceFeeRate  Float        @default(0.0)   // Default Service Fee percentage
   // ------------------------------
   users       User[]
   ingredients Ingredient[]

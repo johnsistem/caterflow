@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -55,9 +56,10 @@ interface RecipesClientProps {
   ingredientLibrary: Ingredient[];
   initialRecipes: RecipeSummary[];
   orgId: string;
+  orgCurrency: string;
 }
 
-export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId }: RecipesClientProps) {
+export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId, orgCurrency }: RecipesClientProps) {
   const t = useTranslations("Recipes");
 
   // Info Tooltip State
@@ -241,7 +243,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-right font-medium text-slate-500">
-                        ${recipe.totalCost?.toFixed(2) || '0.00'}
+                        {formatCurrency(recipe.totalCost || 0, orgCurrency)}
                       </td>
                       <td className="py-4 px-6 text-right">
                         <Badge 
@@ -361,7 +363,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                         {item.name}
                       </h4>
                       <p className="text-xs text-emerald-600 font-medium mt-1">
-                        ${item.cost.toFixed(2)} / {item.unit}
+                        {formatCurrency(item.cost, orgCurrency)} / {item.unit}
                       </p>
                     </div>
                     <Button 
@@ -479,10 +481,10 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                           {item.unit}
                         </td>
                         <td className="py-3 px-2 text-right text-sm text-slate-600 dark:text-slate-400">
-                          ${item.cost.toFixed(2)}
+                          {formatCurrency(item.cost, orgCurrency)}
                         </td>
                         <td className="py-3 px-2 text-right font-semibold text-sm text-slate-900 dark:text-white">
-                          ${roundTo(item.quantity * item.cost, 2).toFixed(2)}
+                          {formatCurrency(roundTo(item.quantity * item.cost, 2), orgCurrency)}
                         </td>
                         <td className="py-3 px-2 text-center">
                           <Button 
@@ -513,12 +515,12 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                 <div>
                   <h3 className="text-sm font-medium text-slate-500 mb-1">{t("financials.total_cost")}</h3>
                   <div className="text-4xl font-bold text-slate-900 dark:text-white">
-                    ${totalCost.toFixed(2)}
+                    {formatCurrency(totalCost, orgCurrency)}
                   </div>
                   <div className="mt-4 space-y-1">
                     <div className="text-xs text-slate-500">{t("financials.cost_portion")}</div>
                     <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                      ${costPerPortion.toFixed(2)}
+                      {formatCurrency(costPerPortion, orgCurrency)}
                     </div>
                   </div>
                 </div>

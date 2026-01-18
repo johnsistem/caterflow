@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { formatCurrency } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -55,13 +56,18 @@ interface EventsClientProps {
     events: any[];
     clients: any[];
     recipes: any[];
+    orgSettings: {
+      currency: string;
+      taxRate: number;
+      serviceFeeRate: number;
+    };
   };
   orgId: string;
 }
 
 export default function EventsClient({ initialData, orgId }: EventsClientProps) {
   const t = useTranslations("Events");
-  const { events: initialEvents, clients, recipes } = initialData;
+  const { events: initialEvents, clients, recipes, orgSettings } = initialData;
   const router = useRouter();
 
   const [events, setEvents] = useState(initialEvents);
@@ -160,7 +166,6 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     let marketCostTotal = 0;
 
     formData.selectedRecipes.forEach(item => {
-      // Logic: Use snapshot if not DRAFT, otherwise current recipe price
       const lockedPrice = (formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null) 
         ? item.priceSnapshot 
         : (item.details?.price || 0);
@@ -173,11 +178,14 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
       marketCostTotal += marketCost * item.quantity;
     });
 
-    const serviceFee = subtotal * 0.18;
-    const tax = subtotal * 0.085;
+    const taxRate = orgSettings.taxRate / 100;
+    const serviceFeeRate = orgSettings.serviceFeeRate / 100;
+
+    const serviceFee = subtotal * serviceFeeRate;
+    const tax = subtotal * taxRate;
     const grandTotal = subtotal + serviceFee + tax;
 
-    const marketGrandTotal = marketSubtotal + (marketSubtotal * 0.18) + (marketSubtotal * 0.085);
+    const marketGrandTotal = marketSubtotal + (marketSubtotal * serviceFeeRate) + (marketSubtotal * taxRate);
     const lostRevenue = marketGrandTotal - grandTotal;
     const currentMargin = grandTotal > 0 ? (grandTotal - marketCostTotal) / grandTotal : 0;
     const originalMargin = marketGrandTotal > 0 ? (marketGrandTotal - marketCostTotal) / marketGrandTotal : 0;
@@ -186,11 +194,13 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
       subtotal, serviceFee, tax, grandTotal, 
       marketGrandTotal, lostRevenue, 
       currentMargin, originalMargin,
-      isSqueezed: lostRevenue > 0.01 && formData.status !== 'DRAFT'
+      isSqueezed: lostRevenue > 0.01 && formData.status !== 'DRAFT',
+      taxRatePct: orgSettings.taxRate,
+      serviceFeeRatePct: orgSettings.serviceFeeRate
     };
   };
 
-  const { subtotal, serviceFee, tax, grandTotal, marketGrandTotal, lostRevenue, currentMargin, originalMargin, isSqueezed } = calculateTotals();
+  const { subtotal, serviceFee, tax, grandTotal, marketGrandTotal, lostRevenue, currentMargin, originalMargin, isSqueezed, taxRatePct, serviceFeeRatePct } = calculateTotals();
 
   const handleAddRecipe = (recipeId: string) => {
     const recipe = recipes.find(r => r.id === recipeId);
@@ -397,8 +407,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
   // Helper for price formatting consistency
   const fmtPrice = (amount: number) => {
-    // Ensure strict 2 decimals
-    return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return formatCurrency(amount, orgSettings.currency);
   };
 
   // --- VIEW: LIST ---
@@ -507,7 +516,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-right font-medium text-emerald-600">
-                        ${evt.totalPrice ? fmtPrice(evt.totalPrice) : '0.00'}
+                        {evt.totalPrice ? fmtPrice(evt.totalPrice) : fmtPrice(0)}
                       </td>
                       <td className="py-4 px-6 text-right">
                         <Button 
@@ -773,15 +782,15 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                     <h4 className="font-bold text-amber-900 text-sm">Atención: Margen Reducido</h4>
                     <p className="text-xs text-amber-700 leading-relaxed">
                       El aumento en los costos de insumos ha reducido el margen de este presupuesto. 
-                      El precio para el cliente es de <span className="font-bold">${fmtPrice(grandTotal)}</span>, 
-                      pero si se cotizara hoy sería de <span className="font-bold">${fmtPrice(marketGrandTotal)}</span>.
+                      El precio para el cliente es de <span className="font-bold">{fmtPrice(grandTotal)}</span>, 
+                      pero si se cotizara hoy sería de <span className="font-bold">{fmtPrice(marketGrandTotal)}</span>.
                     </p>
                     <div className="flex gap-4 mt-2">
                       <div className="text-[10px] uppercase font-bold text-amber-500">
                         Margen Actual: <span className="text-red-600">{(currentMargin * 100).toFixed(1)}%</span>
                       </div>
                       <div className="text-[10px] uppercase font-bold text-amber-500">
-                        Perdiendo: <span className="text-red-600">${fmtPrice(lostRevenue)}</span>
+                        Perdiendo: <span className="text-red-600">{fmtPrice(lostRevenue)}</span>
                       </div>
                     </div>
                   </div>
@@ -811,7 +820,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                          <div key={recipe.id} className="flex justify-between items-center p-2 hover:bg-slate-50 border rounded cursor-pointer" onClick={() => handleAddRecipe(recipe.id)}>
                             <div>
                               <div className="font-medium">{recipe.name}</div>
-                              <div className="text-xs text-slate-500">${recipe.price}</div>
+                              <div className="text-xs text-slate-500">{fmtPrice(recipe.price)}</div>
                             </div>
                             <Button size="sm" variant="ghost"><Plus className="w-4 h-4"/></Button>
                          </div>
@@ -860,14 +869,14 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                             <Lock className="w-3 h-3 text-slate-400" />
                           )}
                           <span className="font-bold text-base sm:text-lg text-slate-900 tracking-tight">
-                            ${fmtPrice((formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null) ? item.priceSnapshot : (item.details?.price || 0))}
+                            {fmtPrice((formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null) ? item.priceSnapshot : (item.details?.price || 0))}
                           </span>
                         </div>
                         
                         {formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null && Math.abs(item.priceSnapshot - (item.details?.price || 0)) > 0.01 && (
                           <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-tight">
                             <TrendingUp className="w-2.5 h-2.5" />
-                            <span>Market: ${fmtPrice(item.details?.price || 0)}</span>
+                            <span>Market: {fmtPrice(item.details?.price || 0)}</span>
                           </div>
                         )}
                       </div>
@@ -994,10 +1003,10 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                              <div className="flex gap-4">
                                 <span className="w-8 text-center text-slate-600">{item.quantity}</span>
                                 <span className="w-12 text-right text-slate-600">
-                                  ${fmtPrice(price)}
+                                  {fmtPrice(price)}
                                 </span>
                                 <span className="w-16 text-right font-bold text-slate-900">
-                                  ${fmtPrice(item.quantity * price)}
+                                  {fmtPrice(item.quantity * price)}
                                 </span>
                              </div>
                           </div>
@@ -1015,19 +1024,19 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                     <div className="flex justify-between">
                       <span className="text-slate-500 text-xs font-medium">{t("financials.subtotal")}</span>
                       <span className="font-bold text-slate-900">
-                        ${fmtPrice(subtotal)}
+                        {fmtPrice(subtotal)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500 text-xs font-medium">{t("financials.service_fee")} (18%)</span>
+                      <span className="text-slate-500 text-xs font-medium">{t("financials.service_fee")} ({serviceFeeRatePct}%)</span>
                       <span className="font-bold text-slate-900">
-                        ${fmtPrice(serviceFee)}
+                        {fmtPrice(serviceFee)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500 text-xs font-medium">{t("financials.tax")} (8.5%)</span>
+                      <span className="text-slate-500 text-xs font-medium">{t("financials.tax")} ({taxRatePct}%)</span>
                       <span className="font-bold text-slate-900">
-                        ${fmtPrice(tax)}
+                        {fmtPrice(tax)}
                       </span>
                     </div>
                   </div>
@@ -1035,7 +1044,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                   <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-100">
                     <span className="text-sm font-bold text-slate-900">{t("financials.total")}</span>
                     <span className="text-2xl font-extrabold text-[#10b981]">
-                      ${fmtPrice(grandTotal)}
+                      {fmtPrice(grandTotal)}
                     </span>
                   </div>
 

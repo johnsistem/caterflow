@@ -90,10 +90,12 @@ export function Sidebar() {
             {locale}
           </span>
         </button>
-        <button className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all text-sm font-medium group">
-          <Settings className="w-5 h-5 text-slate-500 group-hover:text-white" />
-          {t("settings")}
-        </button>
+        <Link href="/settings">
+          <button className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all text-sm font-medium group">
+            <Settings className="w-5 h-5 text-slate-500 group-hover:text-white" />
+            {t("settings")}
+          </button>
+        </Link>
         <button 
           onClick={() => signOut(locale)}
           className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all text-sm font-medium group"

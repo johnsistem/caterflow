@@ -26,12 +26,16 @@ export default async function InventoryPage() {
   const orgId = userData.organizationId;
 
   // 3. Fetch Data using the Server Action helper
-  const ingredients = await getIngredients(orgId);
+  const [ingredients, orgSettings] = await Promise.all([
+    getIngredients(orgId),
+    supabase.from("Organization").select("currency").eq("id", orgId).single().then(r => r.data)
+  ]);
 
   return (
     <InventoryClient 
       initialIngredients={ingredients} 
       orgId={orgId} 
+      orgCurrency={orgSettings?.currency || "USD"}
     />
   );
 }

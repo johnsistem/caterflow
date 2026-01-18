@@ -60,10 +60,18 @@ export async function fetchEventData(orgId: string) {
 
   if (recipesError) console.error("Error fetching recipes:", recipesError);
 
+  // 4. Fetch Organization settings
+  const { data: orgSettings } = await supabase
+    .from("Organization")
+    .select("currency, taxRate, serviceFeeRate")
+    .eq("id", orgId)
+    .single();
+
   return {
     events: events || [],
     clients: clients || [],
-    recipes: recipes || []
+    recipes: recipes || [],
+    orgSettings: orgSettings || { currency: "USD", taxRate: 0, serviceFeeRate: 0 }
   };
 }
 
