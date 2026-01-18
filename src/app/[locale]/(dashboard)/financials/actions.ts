@@ -197,6 +197,168 @@ export async function getFinancialData(period: FinancialPeriod) {
       .sort((a, b) => b.margin - a.margin)
       .slice(0, 5);
 
+    // 4. Distinction between Historical and Projected
+    let historicalRevenue = 0;
+    let historicalCost = 0;
+    let projectedRevenue = 0;
+    let projectedCost = 0;
+
+    const todayStr = format(now, "yyyy-MM-dd");
+
+    for (const event of (events || [])) {
+      const eventDateStr = format(new Date(event.date), "yyyy-MM-dd");
+      const isProjected = eventDateStr >= todayStr;
+      
+      let eventCost = 0;
+      if (event.recipes && Array.isArray(event.recipes)) {
+        for (const er of event.recipes) {
+          const recipe = er.recipe as any;
+          if (!recipe) continue;
+          let recipeBatchCost = 0;
+          if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+            for (const ri of recipe.ingredients) {
+              if (ri.ingredient) recipeBatchCost += (ri.quantity || 0) * (ri.ingredient.cost || 0);
+            }
+          }
+          eventCost += recipeBatchCost * (er.quantity || 1);
+        }
+      }
+
+      if (isProjected) {
+        projectedRevenue += event.totalPrice || 0;
+        projectedCost += eventCost;
+      } else {
+        historicalRevenue += event.totalPrice || 0;
+        historicalCost += eventCost;
+      }
+    }
+
+    // Update Chart Data with Projected Flag and split keys for better rendering
+    if (chartData) {
+       chartData = (chartData as any).map((item: any, idx: number, arr: any[]) => {
+         const isProjected = item.fullDate >= todayStr.substring(0, item.fullDate.length);
+         
+         // To make the lines connect, the first projected point should also be the last historical point
+         // or we just let Recharts connect them. Using explicit keys:
+         return {
+           ...item,
+           isProjected,
+           // Keep original revenue/profit for the tooltip
+           revenue_hist: !isProjected ? item.revenue : (idx > 0 && !arr[idx-1].isProjected ? item.revenue : null),
+           revenue_proj: isProjected ? item.revenue : (idx < arr.length - 1 && arr[idx+1].isProjected ? item.revenue : null),
+           profit_hist: !isProjected ? item.profit : (idx > 0 && !arr[idx-1].isProjected ? item.profit : null),
+           profit_proj: isProjected ? item.profit : (idx < arr.length - 1 && arr[idx+1].isProjected ? item.profit : null),
+         };
+       });
+    }
+
+    // 5. Intelligent Insights with Projection Logic
+    const lastMonthStart = startOfMonth(subMonths(now, 1));
+    const lastMonthEnd = endOfMonth(subMonths(now, 1));
+
+    const { data: lastMonthEvents } = await supabase
+      .from("Event")
+      .select(`
+        totalPrice,
+        recipes:EventRecipe(
+          quantity,
+          recipe:Recipe(
+            ingredients:RecipeIngredient(
+              quantity,
+              ingredient:Ingredient(cost)
+            )
+          )
+        )
+      `)
+      .eq("organizationId", orgId)
+      .eq("status", "CONFIRMED")
+      .gte("date", lastMonthStart.toISOString())
+      .lte("date", lastMonthEnd.toISOString());
+
+    let lastMonthRevenue = 0;
+    let lastMonthCost = 0;
+
+    for (const event of (lastMonthEvents || [])) {
+      lastMonthRevenue += event.totalPrice || 0;
+      if (event.recipes && Array.isArray(event.recipes)) {
+        for (const er of event.recipes) {
+          const recipe = er.recipe as any;
+          if (!recipe) continue;
+          let recipeBatchCost = 0;
+          if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+            for (const ri of recipe.ingredients) {
+              if (ri.ingredient) recipeBatchCost += (ri.quantity || 0) * (ri.ingredient.cost || 0);
+            }
+          }
+          lastMonthCost += recipeBatchCost * (er.quantity || 1);
+        }
+      }
+    }
+
+    const lastMonthMargin = lastMonthRevenue > 0 ? ((lastMonthRevenue - lastMonthCost) / lastMonthRevenue) * 100 : 0;
+    const historicalMargin = historicalRevenue > 0 ? ((historicalRevenue - historicalCost) / historicalRevenue) * 100 : 0;
+    
+    // Insights Content Composition
+    let marginTrendText = "";
+    if (historicalRevenue > 0 && lastMonthRevenue > 0) {
+      const marginDiff = historicalMargin - lastMonthMargin;
+      marginTrendText = `Tu rentabilidad histórica es del ${historicalMargin.toFixed(1)}%. Esto representa un ${Math.abs(marginDiff).toFixed(1)}% ${marginDiff >= 0 ? "más" : "menos"} que el mes anterior.`;
+    } else {
+      marginTrendText = "¡Buen comienzo! Estamos empezando a recopilar tus datos históricos para comparar tu crecimiento.";
+    }
+
+    const currentMonthProjectedProfit = projectedRevenue - projectedCost;
+    const currentMonthMargin = projectedRevenue > 0 ? ((projectedRevenue - projectedCost) / projectedRevenue) * 100 : 0;
+    
+    let projectionText = "";
+    if (projectedRevenue > 0) {
+      projectionText = `Para este mes de ${format(now, "MMMM")}, tienes proyectado un beneficio de ${new Intl.NumberFormat(currency === "NIO" ? "es-NI" : "en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(currentMonthProjectedProfit)} con un margen del ${currentMonthMargin.toFixed(1)}%.`;
+    }
+
+    // Quarterly Projection
+    const quarterEnd = endOfQuarter(now);
+    const { data: qEvents } = await supabase
+      .from("Event")
+      .select(`totalPrice, recipes:EventRecipe(quantity, recipe:Recipe(ingredients:RecipeIngredient(quantity, ingredient:Ingredient(cost))))`)
+      .eq("organizationId", orgId)
+      .eq("status", "CONFIRMED")
+      .gte("date", todayStr)
+      .lte("date", quarterEnd.toISOString());
+
+    let qProjectedRevenue = 0;
+    let qProjectedCost = 0;
+    for (const e of (qEvents || [])) {
+       qProjectedRevenue += e.totalPrice || 0;
+       (e.recipes as any[] || []).forEach(er => {
+          const r = er.recipe;
+          let rCost = 0;
+          (r.ingredients || []).forEach((ri: any) => {
+             if (ri.ingredient) rCost += (ri.quantity || 0) * (ri.ingredient.cost || 0);
+          });
+          qProjectedCost += rCost * (er.quantity || 1);
+       });
+    }
+
+    let quarterlyText = "";
+    if (qProjectedRevenue > 0) {
+      quarterlyText = `Tu cartera de eventos futuros ya asegura ${new Intl.NumberFormat(currency === "NIO" ? "es-NI" : "en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(qProjectedRevenue - qProjectedCost)} en beneficios para el primer trimestre.`;
+    }
+
+    const topSelling = Array.from(recipePerformance.values()).sort((a, b) => b.count - a.count)[0];
+    const topSellingMargin = topSelling && topSelling.revenue > 0 ? ((topSelling.revenue - topSelling.cost) / topSelling.revenue) * 100 : 0;
+
+    const insights = {
+      marginTrend: { text: marginTrendText },
+      projection: projectionText ? { text: projectionText } : null,
+      quarterly: quarterlyText ? { text: quarterlyText } : null,
+      topRecipeAlert: topSelling && topSellingMargin < 30 ? {
+        name: topSelling.name,
+        margin: topSellingMargin,
+        text: `Tu plato más vendido (${topSelling.name}) tiene un margen bajo del ${topSellingMargin.toFixed(1)}%. Considera ajustar su precio.`
+      } : null,
+      suggestion: "Revisa tus precios de inventario periódicamente para mantener tus márgenes."
+    };
+
     return {
       kpi: {
         revenue: totalRevenue,
@@ -207,7 +369,8 @@ export async function getFinancialData(period: FinancialPeriod) {
       topRecipes: topRecipesByMargin,
       periodLabel: `${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")}`,
       debugCount: (events || []).length,
-      currency: currency
+      currency: currency,
+      insights
     };
   } catch (error: any) {
     console.error("Critical Error in getFinancialData:", error);

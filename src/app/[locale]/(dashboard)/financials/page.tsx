@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
-import { DollarSign, TrendingUp, Percent, Calendar, Filter } from "lucide-react";
+import { DollarSign, TrendingUp, Percent, Calendar, Filter, Lightbulb, Sparkles, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
@@ -155,6 +155,84 @@ export default function FinancialsPage() {
         </Card>
       </div>
 
+      {/* Intelligent Insights */}
+      {data?.insights && (
+        <Card className="bg-gradient-to-r from-indigo-500/10 via-slate-800/50 to-emerald-500/10 border-slate-700/50 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Sparkles className="w-24 h-24 text-white" />
+          </div>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+              </div>
+              <CardTitle className="text-sm font-semibold text-white tracking-wide uppercase">Resumen Inteligente</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Margin Trend */}
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                <div className={`mt-0.5 w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-indigo-500/20`}>
+                   <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-200 leading-relaxed font-medium">
+                    {data.insights.marginTrend.text}
+                  </p>
+                </div>
+              </div>
+
+              {/* Current Month Projection */}
+              {data.insights.projection && (
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <div className="mt-0.5 w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-emerald-50 leading-relaxed font-semibold">
+                       {data.insights.projection.text}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Quarterly Projection */}
+              {data.insights.quarterly && (
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <div className="mt-0.5 w-6 h-6 rounded-md bg-blue-500/20 flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-50 leading-relaxed font-medium">
+                       {data.insights.quarterly.text}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Top Recipe Alert */}
+              {data.insights.topRecipeAlert && (
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                  <div className="mt-0.5 w-6 h-6 rounded-md bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-200 leading-relaxed font-medium">
+                      {data.insights.topRecipeAlert.text}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 flex items-center gap-2 text-[12px] font-medium text-slate-400 italic">
+               <span className="text-indigo-400">⚡ Sugerencia:</span> {data.insights.suggestion}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Revenue vs Profit Chart */}
       <Card className="bg-[#1a2029] border-slate-800">
         <CardHeader>
@@ -163,14 +241,26 @@ export default function FinancialsPage() {
               <CardTitle className="text-white text-xl font-semibold tracking-tight">{t("revenue_vs_profit.title")}</CardTitle>
               <CardDescription className="text-slate-500 text-sm">{t("revenue_vs_profit.description")}</CardDescription>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                <span className="text-[12px] text-slate-400 font-medium tracking-tight whitespace-nowrap">{t("revenue")}</span>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                  <span className="text-[12px] text-slate-400 font-medium tracking-tight whitespace-nowrap">{t("revenue")}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-[12px] text-slate-400 font-medium tracking-tight whitespace-nowrap">{t("profit")}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                <span className="text-[12px] text-slate-400 font-medium tracking-tight whitespace-nowrap">{t("profit")}</span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-0.5 bg-slate-500"></div>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Histórico</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-0.5 bg-slate-500 border-b border-dashed border-slate-400"></div>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Proyectado</span>
+                </div>
               </div>
             </div>
           </div>
@@ -207,23 +297,45 @@ export default function FinancialsPage() {
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Area 
                   type="monotone" 
-                  dataKey="revenue" 
+                  dataKey="revenue_hist"
                   stroke="#6366f1" 
                   strokeWidth={2}
                   fill="url(#colorRevenue)"
                   dot={false}
                   activeDot={{ r: 4, strokeWidth: 0, fill: "#6366f1" }}
-                  connectNulls={false}
+                  connectNulls={true}
                 />
                 <Area 
                   type="monotone" 
-                  dataKey="profit" 
+                  dataKey="revenue_proj"
+                  stroke="#6366f1" 
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  fill="none"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: "#6366f1" }}
+                  connectNulls={true}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="profit_hist"
                   stroke="#22c55e" 
                   strokeWidth={2}
                   fill="url(#colorProfit)"
                   dot={false}
                   activeDot={{ r: 4, strokeWidth: 0, fill: "#22c55e" }}
-                  connectNulls={false}
+                  connectNulls={true}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="profit_proj"
+                  stroke="#22c55e" 
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  fill="none"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: "#22c55e" }}
+                  connectNulls={true}
                 />
               </AreaChart>
             </ChartContainer>
@@ -264,7 +376,7 @@ export default function FinancialsPage() {
           </CardContent>
         </Card>
 
-        {/* Monthly Event Volume - Placeholder or could be real data too, but user asked for specific Profit/Revenue focus. Leaving placeholder visuals but maybe just remove or update? Keeping visual consistency. */}
+        {/* Monthly Event Volume */}
          {/* Let's make it static or remove if no logic supplied. I'll keep it static for layout stability unless requested. */}
         <Card className="bg-[#1a2029] border-slate-800">
           <CardHeader>
@@ -300,7 +412,14 @@ export default function FinancialsPage() {
                     fill="#6366f1" 
                     radius={[6, 6, 0, 0]}
                     barSize={48}
-                  />
+                  >
+                    {data?.chartData.map((entry: any, index: number) => (
+                      <rect 
+                        key={`cell-${index}`} 
+                        fill={entry.isProjected ? "#6366f188" : "#6366f1"}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ChartContainer>
             </div>
