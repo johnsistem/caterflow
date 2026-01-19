@@ -219,8 +219,8 @@
     },
     "financials": {
       "subtotal": "Subtotal",
-      "service_fee": "Cargo por Servicio (18%)",
-      "tax": "Impuesto (8.5%)",
+      "service_fee": "Cargo por Servicio",
+      "tax": "Impuesto",
       "total": "Gran Total"
     },
     "actions": {
@@ -356,6 +356,7 @@
       "profile": {
         "title": "Perfil de Empresa",
         "org_name": "Nombre de la Organización",
+        "slogan": "Eslogan de la Empresa",
         "logo": "Logo del Negocio",
         "logo_hint": "Usado en presupuestos PDF"
       },

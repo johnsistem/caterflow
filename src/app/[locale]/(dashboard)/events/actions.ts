@@ -63,7 +63,7 @@ export async function fetchEventData(orgId: string) {
   // 4. Fetch Organization settings
   const { data: orgSettings } = await supabase
     .from("Organization")
-    .select("currency, taxRate, serviceFeeRate")
+    .select("name, logoUrl, slogan, currency, taxRate, serviceFeeRate")
     .eq("id", orgId)
     .single();
 
@@ -71,7 +71,7 @@ export async function fetchEventData(orgId: string) {
     events: events || [],
     clients: clients || [],
     recipes: recipes || [],
-    orgSettings: orgSettings || { currency: "USD", taxRate: 0, serviceFeeRate: 0 }
+    orgSettings: orgSettings || { name: "CaterFlow", logoUrl: "", slogan: "", currency: "USD", taxRate: 0, serviceFeeRate: 0 }
   };
 }
 

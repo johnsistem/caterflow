@@ -219,8 +219,8 @@
     },
     "financials": {
       "subtotal": "Subtotal",
-      "service_fee": "Service Fee (18%)",
-      "tax": "Tax (8.5%)",
+      "service_fee": "Service Fee",
+      "tax": "Tax",
       "total": "Grand Total"
     },
     "actions": {
@@ -356,6 +356,7 @@
       "profile": {
         "title": "Business Profile",
         "org_name": "Organization Name",
+        "slogan": "Business Slogan",
         "logo": "Business Logo",
         "logo_hint": "Used in PDF quotes"
       },

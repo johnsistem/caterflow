@@ -30,6 +30,8 @@ import {
   Lock,
   TrendingUp
 } from "lucide-react";
+import jsPDF from "jspdf";
+import { toPng } from "html-to-image";
 import { useTranslations } from "next-intl";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -57,6 +59,9 @@ interface EventsClientProps {
     clients: any[];
     recipes: any[];
     orgSettings: {
+      name: string;
+      logoUrl: string;
+      slogan: string;
       currency: string;
       taxRate: number;
       serviceFeeRate: number;
@@ -69,6 +74,55 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
   const t = useTranslations("Events");
   const { events: initialEvents, clients, recipes, orgSettings } = initialData;
   const router = useRouter();
+
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById("event-quote-preview");
+    if (!element) return;
+
+    try {
+      setIsLoading(true);
+
+      // 1. Manually hide buttons
+      const buttons = element.querySelectorAll('.quote-actions, .quote-send-btn');
+      buttons.forEach(b => (b as HTMLElement).style.opacity = '0');
+
+      // 2. Wait a heartbeat for the browser to re-paint
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // 3. Capture with better quality and explicit scale
+      const dataUrl = await toPng(element, {
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+        pixelRatio: 2,
+        // Ensure we capture the full height even if scrolled
+        height: element.scrollHeight, 
+      });
+
+      // 4. Restore buttons
+      buttons.forEach(b => (b as HTMLElement).style.opacity = '1');
+
+      // 5. Build PDF with dynamic height to prevent cutting
+      const imgProps = new jsPDF().getImageProperties(dataUrl);
+      const pdfWidth = 210; // Standard A4 width in mm
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [pdfWidth, pdfHeight] // Dynamic height! No more cutting.
+      });
+
+      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
+      
+      const fileName = `Cotizacion_${clientName.replace(/\s+/g, '_')}_${formData.date}.pdf`;
+      pdf.save(fileName);
+      setIsLoading(false);
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("PDF Generation error:", error);
+      alert(`Error: El sistema no pudo renderizar el PDF. Inténtalo de nuevo.`);
+    }
+  };
 
   const [events, setEvents] = useState(initialEvents);
   
@@ -178,8 +232,10 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
       marketCostTotal += marketCost * item.quantity;
     });
 
-    const taxRate = orgSettings.taxRate / 100;
-    const serviceFeeRate = orgSettings.serviceFeeRate / 100;
+    // Formula: Subtotal * (Rate / 100)
+    // We ensure to treat the rate as a percentage value (e.g. 18 means 18%)
+    const taxRate = (orgSettings.taxRate) / 100;
+    const serviceFeeRate = (orgSettings.serviceFeeRate) / 100;
 
     const serviceFee = subtotal * serviceFeeRate;
     const tax = subtotal * taxRate;
@@ -922,42 +978,56 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           {/* Right Side - Quote Preview */}
           <div>
             <div className="pb-6">
-            <Card className="border-slate-200 flex-shrink-0 mb-6">
+            <Card id="event-quote-preview" className="border-slate-200 flex-shrink-0 mb-6 bg-white">
               <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between quote-actions">
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-bold text-slate-900">{t("preview")}</h3>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full">
+                    <Button 
+                      size="icon" 
+                      variant="outline" 
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleDownloadPDF}
+                    >
                        <Download className="w-4 h-4 text-slate-500" />
                     </Button>
-                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full">
+                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => window.print()}>
                        <Printer className="w-4 h-4 text-slate-500" />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                {/* Invoice Header */}
                 <div className="mb-6">
                   <div className="flex justify-between items-start mb-6">
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 bg-[#10b981] rounded flex items-center justify-center">
-                           <Utensils className="w-3.5 h-3.5 text-white" />
-                        </div>
-                        <span className="font-bold text-slate-900">CaterFlow</span>
+                      <div className="flex items-center gap-3 mb-2">
+                        {orgSettings.logoUrl ? (
+                          <img 
+                            src={orgSettings.logoUrl} 
+                            alt={orgSettings.name} 
+                            className="w-10 h-10 object-contain" 
+                            crossOrigin="anonymous"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+                             <Utensils className="w-5 h-5 text-white" />
+                          </div>
+                        )}
+                        <span className="font-extrabold text-xl text-slate-900 tracking-tight">{orgSettings.name || "CaterFlow"}</span>
                       </div>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        123 Culinary Ave, Suite 100<br />
-                        New York, NY 10012
-                      </p>
+                      {orgSettings.slogan && (
+                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                           {orgSettings.slogan}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
-                       <h4 className="text-2xl font-extrabold text-slate-900 tracking-tight uppercase">{t("quote_header")}</h4>
-                       <p className="text-xs font-bold text-slate-900 mt-1">#Q-2024-892</p>
-                       <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">{t("actions.issued")}: Oct 02, 2024</p>
+                       <h4 className="text-2xl font-black text-slate-900 tracking-tighter uppercase mb-0">{t("quote_header")}</h4>
+                       <p className="text-xs font-bold text-emerald-600 mt-0">#Q-{new Date().getFullYear()}-{formData.id.slice(0, 4).toUpperCase() || "NEW"}</p>
+                       <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">{t("actions.issued")}: {new Date().toLocaleDateString()}</p>
                     </div>
                   </div>
 
@@ -970,22 +1040,22 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                     </div>
                     <div className="text-right">
                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("event_date")}</div>
-                       <div className="font-bold text-sm text-slate-900">{new Date(formData.date).toLocaleDateString()}</div>
-                       <div className="text-xs text-slate-500">{formData.guests} {t("guest_count")}</div>
-                    </div>
+                        <div className="font-bold text-sm text-slate-900">{new Date(formData.date).toLocaleDateString()}</div>
+                        <div className="text-xs text-slate-500 font-medium">{formData.guests} {t("guest_count")}</div>
+                     </div>
                   </div>
                   
                   <Separator className="my-4" />
 
                   {/* Itemized List Header */}
-                  <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
-                     <span>{t("table.description")}</span>
-                     <div className="flex gap-4">
-                        <span className="w-8 text-center">{t("table.qty")}</span>
-                        <span className="w-12 text-right">{t("table.price")}</span>
-                        <span className="w-16 text-right">{t("table.amount")}</span>
-                     </div>
-                  </div>
+                   <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
+                      <span>{t("table.description")}</span>
+                      <div className="flex gap-4">
+                         <span className="w-8 text-center">{t("table.qty")}</span>
+                         <span className="w-16 text-right">{t("table.price")}</span>
+                         <span className="w-20 text-right">{t("table.amount")}</span>
+                      </div>
+                   </div>
 
                   {/* Items */}
                   <div className="space-y-3 mb-6 min-h-[100px]">
@@ -994,23 +1064,23 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                           ? item.priceSnapshot
                           : (item.details?.price || 0);
 
-                        return (
-                          <div key={i} className="flex justify-between text-sm px-1">
-                             <div className="max-w-[140px]">
-                                <div className="font-bold text-slate-900 truncate">{item.details?.name}</div>
-                                <div className="text-xs text-slate-500 truncate">{item.details?.category || 'Item'}</div>
-                             </div>
-                             <div className="flex gap-4">
-                                <span className="w-8 text-center text-slate-600">{item.quantity}</span>
-                                <span className="w-12 text-right text-slate-600">
-                                  {fmtPrice(price)}
-                                </span>
-                                <span className="w-16 text-right font-bold text-slate-900">
-                                  {fmtPrice(item.quantity * price)}
-                                </span>
-                             </div>
-                          </div>
-                        );
+                         return (
+                           <div key={i} className="flex justify-between items-start text-sm px-1 py-1">
+                              <div className="flex-1 pr-4">
+                                 <div className="font-bold text-slate-900 break-words leading-tight">{item.details?.name}</div>
+                                 <div className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">{item.details?.category || 'Item'}</div>
+                              </div>
+                              <div className="flex gap-4 shrink-0">
+                                 <span className="w-8 text-center text-slate-600 font-medium">{item.quantity}</span>
+                                 <span className="w-16 text-right text-slate-600 font-mono">
+                                   {fmtPrice(price)}
+                                 </span>
+                                 <span className="w-20 text-right font-bold text-slate-900 font-mono">
+                                   {fmtPrice(item.quantity * price)}
+                                 </span>
+                              </div>
+                           </div>
+                         );
                      })}
                      {formData.selectedRecipes.length === 0 && (
                         <div className="text-center py-4 text-xs text-slate-400 italic">{t("no_items")}</div>
@@ -1028,13 +1098,17 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500 text-xs font-medium">{t("financials.service_fee")} ({serviceFeeRatePct}%)</span>
+                      <span className="text-slate-500 text-xs font-medium">
+                        {t("financials.service_fee").split('(')[0].trim()} ({serviceFeeRatePct >= 1 ? serviceFeeRatePct : serviceFeeRatePct * 100}%)
+                      </span>
                       <span className="font-bold text-slate-900">
                         {fmtPrice(serviceFee)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500 text-xs font-medium">{t("financials.tax")} ({taxRatePct}%)</span>
+                      <span className="text-slate-500 text-xs font-medium">
+                        {t("financials.tax").split('(')[0].trim()} ({taxRatePct >= 1 ? taxRatePct : taxRatePct * 100}%)
+                      </span>
                       <span className="font-bold text-slate-900">
                         {fmtPrice(tax)}
                       </span>
@@ -1052,7 +1126,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                   <Button 
                     disabled={isLoading} 
                     onClick={() => handleSave('SENT')} 
-                    className="w-full mt-6 bg-[#10b981] hover:bg-emerald-600 text-white font-bold h-11 shadow-sm"
+                    className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 shadow-md shadow-emerald-100 rounded-xl quote-send-btn transition-all active:scale-95"
                   >
                     {isLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : (
                       <>
@@ -1061,7 +1135,18 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                       </>
                     )}
                   </Button>
-                  <p className="text-[10px] text-center text-slate-400 mt-2 font-medium">{t("actions.last_saved")}</p>
+                  
+                  {/* Terms & Conditions Footer for PDF */}
+                  <div className="mt-8 pt-6 border-t border-slate-100 text-[10px] text-slate-400 leading-relaxed italic">
+                    <p className="text-center">
+                      Esta cotización tiene una validez de 15 días. Precios sujetos a cambio según disponibilidad de insumos.
+                    </p>
+                    <p className="text-center mt-1">
+                      © {new Date().getFullYear()} {orgSettings.name} • Generado por CaterFlow
+                    </p>
+                  </div>
+                  
+                  <p className="text-[10px] text-center text-slate-400 mt-4 font-medium quote-send-btn tracking-wide">{t("actions.last_saved")}</p>
                 </div>
               </CardContent>
             </Card>

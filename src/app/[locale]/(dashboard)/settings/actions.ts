@@ -7,7 +7,7 @@ export async function fetchOrgSettings(orgId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Organization")
-    .select("id, name, currency, language, logoUrl, taxRate, serviceFeeRate")
+    .select("id, name, currency, language, logoUrl, slogan, taxRate, serviceFeeRate")
     .eq("id", orgId)
     .single();
 
@@ -20,6 +20,7 @@ export async function updateOrgSettings(orgId: string, data: {
   currency?: string;
   language?: string;
   logoUrl?: string;
+  slogan?: string;
   taxRate?: number;
   serviceFeeRate?: number;
 }) {

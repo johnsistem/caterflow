@@ -54,6 +54,7 @@ export default function SettingsClient({ initialSettings, orgId }: SettingsClien
     taxRate: initialSettings.taxRate || 0,
     serviceFeeRate: initialSettings.serviceFeeRate || 0,
     logoUrl: initialSettings.logoUrl || "",
+    slogan: initialSettings.slogan || "",
   });
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,6 +95,7 @@ export default function SettingsClient({ initialSettings, orgId }: SettingsClien
         taxRate: Number(formData.taxRate),
         serviceFeeRate: Number(formData.serviceFeeRate),
         logoUrl: formData.logoUrl,
+        slogan: formData.slogan,
       });
 
       if (res.error) {
@@ -140,6 +142,17 @@ export default function SettingsClient({ initialSettings, orgId }: SettingsClien
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="e.g. Gourmet Catering S.A."
+                    className="border-slate-200 focus:border-emerald-500 transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="slogan">{t("sections.profile.slogan")}</Label>
+                  <Input 
+                    id="slogan"
+                    value={formData.slogan}
+                    onChange={(e) => setFormData({ ...formData, slogan: e.target.value })}
+                    placeholder="e.g. Powering Culinary Excellence"
                     className="border-slate-200 focus:border-emerald-500 transition-colors"
                   />
                 </div>
