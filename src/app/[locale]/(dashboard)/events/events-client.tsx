@@ -606,9 +606,9 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
   // --- VIEW: BUILDER ---
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8 print:m-0">
       {/* Top Header */}
-      <div className="bg-white border-b border-slate-200 dark:border-slate-800 px-8 py-4">
+      <div className="bg-white border-b border-slate-200 dark:border-slate-800 px-8 py-4 print:hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="ghost" className="text-slate-500" onClick={handleBackToList}>
@@ -701,16 +701,16 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-8 print:p-0">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
+        <div className="flex items-center gap-2 text-sm text-slate-500 mb-6 print:hidden">
           <span className="hover:text-slate-900 cursor-pointer" onClick={handleBackToList}>{t("breadcrumb.events")}</span>
           <ChevronRight className="w-4 h-4" />
           <span className="text-slate-900 font-medium">{formData.name}</span>
         </div>
 
         {/* Title Section */}
-        <div className="mb-8">
+        <div className="mb-8 print:hidden">
           <div className="flex items-center justify-between mb-3">
             {isEditing ? (
                <Input 
@@ -762,9 +762,9 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 print:block">
           {/* Left Side */}
-          <div className="space-y-6 min-w-0 overflow-hidden">
+          <div className="space-y-6 min-w-0 overflow-hidden print:hidden">
             {/* Client Card */}
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <div className="flex items-center justify-between">
@@ -976,11 +976,11 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           </div>
 
           {/* Right Side - Quote Preview */}
-          <div>
-            <div className="pb-6">
-            <Card id="event-quote-preview" className="border-slate-200 flex-shrink-0 mb-6 bg-white">
+          <div className="print:w-full">
+            <div className="pb-6 print:pb-0">
+            <Card id="event-quote-preview" className="border-slate-200 flex-shrink-0 mb-6 bg-white print:m-0 print:border-none print:shadow-none">
               <CardHeader className="pb-4">
-                <div className="flex items-center justify-between quote-actions">
+                <div className="flex items-center justify-between quote-actions print:hidden">
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-bold text-slate-900">{t("preview")}</h3>
                   </div>
@@ -999,7 +999,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="print:p-0">
                 <div className="mb-6">
                   <div className="flex justify-between items-start mb-6">
                     <div>
@@ -1117,7 +1117,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
                   <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-100">
                     <span className="text-sm font-bold text-slate-900">{t("financials.total")}</span>
-                    <span className="text-2xl font-extrabold text-[#10b981]">
+                    <span className="text-2xl font-extrabold text-[#10b981] print:text-3xl">
                       {fmtPrice(grandTotal)}
                     </span>
                   </div>
@@ -1126,7 +1126,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                   <Button 
                     disabled={isLoading} 
                     onClick={() => handleSave('SENT')} 
-                    className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 shadow-md shadow-emerald-100 rounded-xl quote-send-btn transition-all active:scale-95"
+                    className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 shadow-md shadow-emerald-100 rounded-xl quote-send-btn transition-all active:scale-95 print:hidden"
                   >
                     {isLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : (
                       <>
@@ -1146,7 +1146,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                     </p>
                   </div>
                   
-                  <p className="text-[10px] text-center text-slate-400 mt-4 font-medium quote-send-btn tracking-wide">{t("actions.last_saved")}</p>
+                  <p className="text-[10px] text-center text-slate-400 mt-4 font-medium quote-send-btn tracking-wide print:hidden">{t("actions.last_saved")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -1212,7 +1212,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                  </table>
                </div>
                
-               <div className="flex justify-end gap-2">
+               <div className="flex justify-end gap-2 print:hidden">
                   <Button variant="outline" onClick={() => window.print()}>
                      <Printer className="w-4 h-4 mr-2" />
                      Print
@@ -1270,7 +1270,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                  </table>
                </div>
 
-               <div className="flex justify-end gap-2">
+               <div className="flex justify-end gap-2 print:hidden">
                   <Button variant="outline" onClick={() => window.print()}>
                      <Printer className="w-4 h-4 mr-2" />
                      Print
