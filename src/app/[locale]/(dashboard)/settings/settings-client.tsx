@@ -57,6 +57,9 @@ export default function SettingsClient({ initialSettings, orgId }: SettingsClien
     slogan: initialSettings.slogan || "",
   });
 
+  const [conversionRate, setConversionRate] = useState<number>(1);
+  const isCurrencyChanged = formData.currency !== initialSettings.currency;
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -96,6 +99,7 @@ export default function SettingsClient({ initialSettings, orgId }: SettingsClien
         serviceFeeRate: Number(formData.serviceFeeRate),
         logoUrl: formData.logoUrl,
         slogan: formData.slogan,
+        conversionRate: isCurrencyChanged ? conversionRate : 1,
       });
 
       if (res.error) {
@@ -251,6 +255,36 @@ export default function SettingsClient({ initialSettings, orgId }: SettingsClien
                 </Select>
               </div>
             </div>
+
+            {isCurrencyChanged && (
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 space-y-3 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-start gap-3">
+                  <div className="bg-amber-500 text-white p-1 rounded-full mt-0.5">
+                    <PercentIcon className="w-3 h-3" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-900">Conversión de Precios</h4>
+                    <p className="text-xs text-amber-700 leading-relaxed">
+                      Has cambiado la moneda de <strong>{initialSettings.currency}</strong> a <strong>{formData.currency}</strong>. 
+                      ¿Deseas convertir todos los precios de ingredientes y recetas existentes?
+                    </p>
+                  </div>
+                </div>
+                <div className="pl-8 space-y-2">
+                   <Label className="text-xs text-amber-900 font-bold uppercase">Tasa de Cambio (1 {initialSettings.currency} = ? {formData.currency})</Label>
+                   <div className="flex items-center gap-3">
+                     <Input 
+                       type="number"
+                       step="0.0001"
+                       value={conversionRate}
+                       onChange={(e) => setConversionRate(parseFloat(e.target.value) || 1)}
+                       className="max-w-[150px] border-amber-200 focus:ring-amber-500 bg-white font-mono"
+                     />
+                     <span className="text-[10px] text-amber-600 font-medium">Ej: Si pasas de USD a NIO, usa 36.62</span>
+                   </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

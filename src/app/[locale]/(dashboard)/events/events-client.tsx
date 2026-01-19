@@ -1170,12 +1170,12 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg">
                   <div>
                     <h3 className="font-bold text-lg">{shoppingListData.eventName}</h3>
-                    <div className="text-sm text-slate-500">{new Date(shoppingListData.eventDate).toLocaleDateString()} • {shoppingListData.guestCount} Guests</div>
+                    <div className="text-sm text-slate-500">{new Date(shoppingListData.eventDate).toLocaleDateString()} • {shoppingListData.guestCount} {t("guest_count")}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-slate-500 uppercase font-bold">Total Est. Cost</div>
                     <div className="text-2xl font-bold text-emerald-600">
-                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: shoppingListData.currency || 'USD' }).format(shoppingListData.totalEstimatedCost)}
+                      {fmtPrice(shoppingListData.totalEstimatedCost)}
                     </div>
                   </div>
                </div>
@@ -1202,7 +1202,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                          </td>
                          <td className="p-3 text-right text-slate-600">
                            {item.estimatedCost > 0 
-                             ? new Intl.NumberFormat('en-US', { style: 'currency', currency: shoppingListData.currency || 'USD' }).format(item.estimatedCost)
+                              ? fmtPrice(item.estimatedCost)
                              : '-'
                            }
                          </td>
