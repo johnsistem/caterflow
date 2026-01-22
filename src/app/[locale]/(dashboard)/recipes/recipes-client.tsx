@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { useTranslations } from "next-intl";
 import { saveRecipe, getRecipeDetails } from "./actions";
+import { roundTo } from "@/lib/utils";
 
 // Types
 type Ingredient = {
@@ -48,15 +50,17 @@ type RecipeSummary = {
   margin: number;
   price: number;
   description: string;
+  yield: number;
 };
 
 interface RecipesClientProps {
   ingredientLibrary: Ingredient[];
   initialRecipes: RecipeSummary[];
   orgId: string;
+  orgCurrency: string;
 }
 
-export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId }: RecipesClientProps) {
+export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId, orgCurrency }: RecipesClientProps) {
   const t = useTranslations("Recipes");
 
   // Info Tooltip State
@@ -71,7 +75,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
   // Recipe Builder State
   const [recipeName, setRecipeName] = useState("New Recipe");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("main-course");
+  const [category, setCategory] = useState("main");
   const [yieldPortions, setYieldPortions] = useState(1);
   const [selectedIngredients, setSelectedIngredients] = useState<RecipeIngredient[]>([]);
   const [marginPercent, setMarginPercent] = useState(30);
@@ -81,15 +85,23 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
   const [isSaving, setIsSaving] = useState(false);
 
   // Financial Calculations
-  const totalCost = selectedIngredients.reduce((sum, item) => sum + (item.quantity * item.cost), 0);
+  // Financial Calculations
+  const totalCost = roundTo(
+    selectedIngredients.reduce((sum, item) => sum + roundTo(item.quantity * item.cost, 2), 0),
+    2
+  );
+  
   const costPerPortion = yieldPortions > 0 ? totalCost / yieldPortions : 0;
-  const sellPrice = marginPercent < 100 ? costPerPortion / (1 - marginPercent / 100) : 0;
+  
+  // Calculate price based on TOTAL cost to ensure margin integrity on the batch
+  const totalTargetPrice = marginPercent < 100 ? totalCost / (1 - marginPercent / 100) : 0;
+  const sellPrice = yieldPortions > 0 ? roundTo(totalTargetPrice / yieldPortions, 2) : 0;
 
   const handleCreateNew = () => {
     // Reset state
     setRecipeName("New Recipe");
     setDescription("");
-    setCategory("main-course");
+    setCategory("main");
     setYieldPortions(1);
     setSelectedIngredients([]);
     setMarginPercent(30);
@@ -110,12 +122,9 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
 
       setRecipeName(details.name);
       setDescription(details.description || "");
-      setCategory(details.category || "main-course");
+      setCategory(details.category || "main");
       setMarginPercent(details.margin);
-      // Determine yield if not stored? 
-      // If we assume price was stored correctly, we might back-calculate, but simplest is default 1 for now
-      // as discussed in plan.
-      setYieldPortions(1); 
+      setYieldPortions(details.yield || 1); 
       setSelectedIngredients(details.ingredients || []);
       
       setEditingId(recipe.id);
@@ -162,6 +171,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
       orgId,
       name: recipeName,
       description: description || `A delicious ${category}`,
+      category: category,
       servings: yieldPortions,
       totalCost: totalCost,
       price: sellPrice,
@@ -232,7 +242,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-right font-medium text-slate-500">
-                        ${recipe.totalCost?.toFixed(2) || '0.00'}
+                        {formatCurrency(recipe.totalCost || 0, orgCurrency)}
                       </td>
                       <td className="py-4 px-6 text-right">
                         <Badge 
@@ -352,7 +362,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                         {item.name}
                       </h4>
                       <p className="text-xs text-emerald-600 font-medium mt-1">
-                        ${item.cost.toFixed(2)} / {item.unit}
+                        {formatCurrency(item.cost, orgCurrency)} / {item.unit}
                       </p>
                     </div>
                     <Button 
@@ -401,7 +411,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="main-course">{t("categories.main")}</SelectItem>
+                        <SelectItem value="main">{t("categories.main")}</SelectItem>
                         <SelectItem value="appetizer">{t("categories.appetizer")}</SelectItem>
                         <SelectItem value="dessert">{t("categories.dessert")}</SelectItem>
                         <SelectItem value="beverage">{t("categories.beverage")}</SelectItem>
@@ -470,10 +480,10 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                           {item.unit}
                         </td>
                         <td className="py-3 px-2 text-right text-sm text-slate-600 dark:text-slate-400">
-                          ${item.cost.toFixed(2)}
+                          {formatCurrency(item.cost, orgCurrency)}
                         </td>
                         <td className="py-3 px-2 text-right font-semibold text-sm text-slate-900 dark:text-white">
-                          ${(item.quantity * item.cost).toFixed(2)}
+                          {formatCurrency(roundTo(item.quantity * item.cost, 2), orgCurrency)}
                         </td>
                         <td className="py-3 px-2 text-center">
                           <Button 
@@ -504,12 +514,12 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                 <div>
                   <h3 className="text-sm font-medium text-slate-500 mb-1">{t("financials.total_cost")}</h3>
                   <div className="text-4xl font-bold text-slate-900 dark:text-white">
-                    ${totalCost.toFixed(2)}
+                    {formatCurrency(totalCost, orgCurrency)}
                   </div>
                   <div className="mt-4 space-y-1">
                     <div className="text-xs text-slate-500">{t("financials.cost_portion")}</div>
                     <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                      ${costPerPortion.toFixed(2)}
+                      {formatCurrency(costPerPortion, orgCurrency)}
                     </div>
                   </div>
                 </div>

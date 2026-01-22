@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,9 +31,10 @@ import { upsertIngredient } from "./actions";
 interface InventoryClientProps {
   initialIngredients: any[];
   orgId: string;
+  orgCurrency: string;
 }
 
-export default function InventoryClient({ initialIngredients, orgId }: InventoryClientProps) {
+export default function InventoryClient({ initialIngredients, orgId, orgCurrency }: InventoryClientProps) {
   const t = useTranslations("Inventory");
   const [ingredients, setIngredients] = useState(initialIngredients);
   const [searchQuery, setSearchQuery] = useState("");
@@ -240,7 +242,7 @@ export default function InventoryClient({ initialIngredients, orgId }: Inventory
                       {item.unit}
                     </td>
                     <td className="py-4 px-6">
-                      <p className="font-semibold text-sm text-slate-900 dark:text-white">${item.cost}</p>
+                      <p className="font-semibold text-sm text-slate-900 dark:text-white">{formatCurrency(item.cost, orgCurrency)}</p>
                     </td>
                      <td className="py-4 px-6">
                       <p className="font-semibold text-sm text-slate-900 dark:text-white">{item.stock}</p>

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { formatCurrency } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -25,8 +26,12 @@ import {
   ChevronRight,
   Filter,
   MoreHorizontal,
-  CheckCircle
+  CheckCircle,
+  Lock,
+  TrendingUp
 } from "lucide-react";
+import jsPDF from "jspdf";
+import { toPng } from "html-to-image";
 import { useTranslations } from "next-intl";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -44,22 +49,87 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { upsertEvent, updateEventStatus, deleteEvent } from "./actions";
+import { upsertEvent, updateEventStatus, deleteEvent, duplicateEvent, generateShoppingList, generateKitchenSheet } from "./actions";
+import { useRouter } from "next/navigation";
+import { Copy, ShoppingCart, ChefHat, FileText } from "lucide-react";
 
 interface EventsClientProps {
   initialData: {
     events: any[];
     clients: any[];
     recipes: any[];
+    orgSettings: {
+      name: string;
+      logoUrl: string;
+      slogan: string;
+      currency: string;
+      taxRate: number;
+      serviceFeeRate: number;
+    };
   };
   orgId: string;
 }
 
 export default function EventsClient({ initialData, orgId }: EventsClientProps) {
   const t = useTranslations("Events");
-  const { events: initialEvents, clients, recipes } = initialData;
+  const { events: initialEvents, clients, recipes, orgSettings } = initialData;
+  const router = useRouter();
+
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById("event-quote-preview");
+    if (!element) return;
+
+    try {
+      setIsLoading(true);
+
+      // 1. Manually hide buttons
+      const buttons = element.querySelectorAll('.quote-actions, .quote-send-btn');
+      buttons.forEach(b => (b as HTMLElement).style.opacity = '0');
+
+      // 2. Wait a heartbeat for the browser to re-paint
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // 3. Capture with better quality and explicit scale
+      const dataUrl = await toPng(element, {
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+        pixelRatio: 2,
+        // Ensure we capture the full height even if scrolled
+        height: element.scrollHeight, 
+      });
+
+      // 4. Restore buttons
+      buttons.forEach(b => (b as HTMLElement).style.opacity = '1');
+
+      // 5. Build PDF with dynamic height to prevent cutting
+      const imgProps = new jsPDF().getImageProperties(dataUrl);
+      const pdfWidth = 210; // Standard A4 width in mm
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [pdfWidth, pdfHeight] // Dynamic height! No more cutting.
+      });
+
+      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
+      
+      const fileName = `Cotizacion_${clientName.replace(/\s+/g, '_')}_${formData.date}.pdf`;
+      pdf.save(fileName);
+      setIsLoading(false);
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("PDF Generation error:", error);
+      alert(`Error: El sistema no pudo renderizar el PDF. Inténtalo de nuevo.`);
+    }
+  };
 
   const [events, setEvents] = useState(initialEvents);
+  
+  // Sync state with props when router refreshes
+  useEffect(() => {
+    setEvents(initialData.events);
+  }, [initialData.events]);
   
   // View State
   const [viewMode, setViewMode] = useState<'list' | 'builder'>('list');
@@ -78,11 +148,18 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     date: new Date().toISOString().split('T')[0],
     guests: 50,
     status: "DRAFT",
-    selectedRecipes: [] as { recipeId: string; quantity: number; details?: any }[]
+    selectedRecipes: [] as { recipeId: string; quantity: number; priceSnapshot?: number; details?: any }[]
   });
 
   // Search State for List
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Profitability UI State
+  const [showShoppingList, setShowShoppingList] = useState(false);
+  const [shoppingListData, setShoppingListData] = useState<any>(null);
+  const [showKitchenSheet, setShowKitchenSheet] = useState(false);
+  const [kitchenSheetData, setKitchenSheetData] = useState<any>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Load selected event into form
   useEffect(() => {
@@ -100,6 +177,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
             selectedRecipes: evt.eventRecipes?.map((er: any) => ({
               recipeId: er.recipe.id,
               quantity: er.quantity,
+              priceSnapshot: er.price, // Loaded from EventRecipe snapshot
               details: er.recipe
             })) || []
           });
@@ -138,17 +216,47 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
   const calculateTotals = () => {
     let subtotal = 0;
+    let marketSubtotal = 0;
+    let marketCostTotal = 0;
+
     formData.selectedRecipes.forEach(item => {
-      const price = item.details?.price || 0;
-      subtotal += price * item.quantity;
+      const lockedPrice = (formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null) 
+        ? item.priceSnapshot 
+        : (item.details?.price || 0);
+      
+      const marketPrice = item.details?.price || 0;
+      const marketCost = item.details?.totalCost || 0;
+
+      subtotal += lockedPrice * item.quantity;
+      marketSubtotal += marketPrice * item.quantity;
+      marketCostTotal += marketCost * item.quantity;
     });
-    const serviceFee = subtotal * 0.18;
-    const tax = subtotal * 0.085;
+
+    // Formula: Subtotal * (Rate / 100)
+    // We ensure to treat the rate as a percentage value (e.g. 18 means 18%)
+    const taxRate = (orgSettings.taxRate) / 100;
+    const serviceFeeRate = (orgSettings.serviceFeeRate) / 100;
+
+    const serviceFee = subtotal * serviceFeeRate;
+    const tax = subtotal * taxRate;
     const grandTotal = subtotal + serviceFee + tax;
-    return { subtotal, serviceFee, tax, grandTotal };
+
+    const marketGrandTotal = marketSubtotal + (marketSubtotal * serviceFeeRate) + (marketSubtotal * taxRate);
+    const lostRevenue = marketGrandTotal - grandTotal;
+    const currentMargin = grandTotal > 0 ? (grandTotal - marketCostTotal) / grandTotal : 0;
+    const originalMargin = marketGrandTotal > 0 ? (marketGrandTotal - marketCostTotal) / marketGrandTotal : 0;
+
+    return { 
+      subtotal, serviceFee, tax, grandTotal, 
+      marketGrandTotal, lostRevenue, 
+      currentMargin, originalMargin,
+      isSqueezed: lostRevenue > 0.01 && formData.status !== 'DRAFT',
+      taxRatePct: orgSettings.taxRate,
+      serviceFeeRatePct: orgSettings.serviceFeeRate
+    };
   };
 
-  const { subtotal, serviceFee, tax, grandTotal } = calculateTotals();
+  const { subtotal, serviceFee, tax, grandTotal, marketGrandTotal, lostRevenue, currentMargin, originalMargin, isSqueezed, taxRatePct, serviceFeeRatePct } = calculateTotals();
 
   const handleAddRecipe = (recipeId: string) => {
     const recipe = recipes.find(r => r.id === recipeId);
@@ -161,7 +269,8 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
         ...prev,
         selectedRecipes: [...prev.selectedRecipes, {
           recipeId,
-          quantity: prev.guests, // Default to guest count!
+          quantity: prev.guests,
+          priceSnapshot: recipe.price, // Snapshot at the moment of adding
           details: recipe
         }]
       }));
@@ -264,6 +373,62 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!formData.id) return;
+    if (!confirm(t("duplicate_confirm") || "Are you sure you want to duplicate this event? prices will be recalculated based on current inventory costs.")) return;
+
+    setIsLoading(true);
+    const res = await duplicateEvent(formData.id, orgId);
+    
+    if (res.error) {
+       setIsLoading(false);
+       alert("Error duplicating: " + res.error);
+    } else {
+       // Success!
+       // 1. Locally add the new event to list (optional, but good for instant feedback)
+       if (res.newEvent) {
+          setEvents(prev => [...prev, res.newEvent]);
+       }
+       
+       // 2. Refresh router to ensure server sync
+       router.refresh();
+
+       // 3. Switch to the new event
+       setSelectedEventId(res.newEventId);
+       setIsLoading(false);
+       
+       // Note: useEffect dependency on selectedEventId will trigger form update
+    }
+  };
+
+  const handleShoppingList = async () => {
+    if (!formData.id) return;
+    setIsGenerating(true);
+    const res = await generateShoppingList(formData.id);
+    setIsGenerating(false);
+
+    if (res.error) {
+      alert("Error: " + res.error);
+    } else {
+      setShoppingListData(res.data);
+      setShowShoppingList(true);
+    }
+  };
+
+  const handleKitchenSheet = async () => {
+    if (!formData.id) return;
+    setIsGenerating(true);
+    const res = await generateKitchenSheet(formData.id);
+    setIsGenerating(false);
+
+    if (res.error) {
+      alert("Error: " + res.error);
+    } else {
+      setKitchenSheetData(res.data);
+      setShowKitchenSheet(true);
+    }
+  };
+
   const clientName = clients.find(c => c.id === formData.clientId)?.name || "Select Client";
 
   const getStatusColor = (status: string) => {
@@ -298,8 +463,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
   // Helper for price formatting consistency
   const fmtPrice = (amount: number) => {
-    // Ensure strict 2 decimals
-    return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return formatCurrency(amount, orgSettings.currency);
   };
 
   // --- VIEW: LIST ---
@@ -408,7 +572,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-right font-medium text-emerald-600">
-                        ${evt.totalPrice ? fmtPrice(evt.totalPrice) : '0.00'}
+                        {evt.totalPrice ? fmtPrice(evt.totalPrice) : fmtPrice(0)}
                       </td>
                       <td className="py-4 px-6 text-right">
                         <Button 
@@ -442,9 +606,9 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
 
   // --- VIEW: BUILDER ---
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 -m-8 print:m-0">
       {/* Top Header */}
-      <div className="bg-white border-b border-slate-200 dark:border-slate-800 px-8 py-4">
+      <div className="bg-white border-b border-slate-200 dark:border-slate-800 px-8 py-4 print:hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="ghost" className="text-slate-500" onClick={handleBackToList}>
@@ -473,20 +637,80 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                {isLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 mr-2"/>}
                Save
             </Button>
+
+            {/* Actions Menu */}
+            {formData.id && (
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
+                 <Button
+                    variant="outline"
+                    size="icon"
+                    title="Duplicate Event"
+                    onClick={handleDuplicate}
+                    disabled={isLoading}
+                 >
+                    <Copy className="w-4 h-4 text-slate-600" />
+                 </Button>
+                 
+                 <Dialog>
+                    <DialogTrigger asChild>
+                       <Button variant="outline" className="gap-2">
+                          <FileText className="w-4 h-4" />
+                          Reports
+                       </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                       <DialogHeader>
+                          <DialogTitle>Event Reports</DialogTitle>
+                       </DialogHeader>
+                       <div className="grid gap-4 py-4">
+                          <Button 
+                            variant="outline" 
+                            className="justify-start h-auto py-4 px-4 gap-4"
+                            onClick={handleShoppingList}
+                            disabled={isGenerating}
+                          >
+                             <div className="bg-blue-100 p-2 rounded-full">
+                                <ShoppingCart className="w-5 h-5 text-blue-600" />
+                             </div>
+                             <div className="text-left">
+                                <div className="font-semibold text-slate-900">Shopping List</div>
+                                <div className="text-xs text-slate-500">Calculate ingredients to buy based on stock</div>
+                             </div>
+                          </Button>
+
+                          <Button 
+                            variant="outline" 
+                            className="justify-start h-auto py-4 px-4 gap-4"
+                            onClick={handleKitchenSheet}
+                            disabled={isGenerating}
+                          >
+                             <div className="bg-orange-100 p-2 rounded-full">
+                                <ChefHat className="w-5 h-5 text-orange-600" />
+                             </div>
+                             <div className="text-left">
+                                <div className="font-semibold text-slate-900">Kitchen Sheet</div>
+                                <div className="text-xs text-slate-500">Quantities for preparation (no prices)</div>
+                             </div>
+                          </Button>
+                       </div>
+                    </DialogContent>
+                 </Dialog>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-8 print:p-0">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
+        <div className="flex items-center gap-2 text-sm text-slate-500 mb-6 print:hidden">
           <span className="hover:text-slate-900 cursor-pointer" onClick={handleBackToList}>{t("breadcrumb.events")}</span>
           <ChevronRight className="w-4 h-4" />
           <span className="text-slate-900 font-medium">{formData.name}</span>
         </div>
 
         {/* Title Section */}
-        <div className="mb-8">
+        <div className="mb-8 print:hidden">
           <div className="flex items-center justify-between mb-3">
             {isEditing ? (
                <Input 
@@ -538,9 +762,9 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 print:block">
           {/* Left Side */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0 overflow-hidden print:hidden">
             {/* Client Card */}
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <div className="flex items-center justify-between">
@@ -603,6 +827,33 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
               </div>
             </div>
 
+            {/* Rentability Alert (Margin Squeeze) */}
+            {isSqueezed && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 animate-in slide-in-from-top duration-500">
+                <div className="flex gap-3">
+                  <div className="bg-amber-100 p-2 rounded-full h-fit">
+                    <Clock className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-amber-900 text-sm">Atención: Margen Reducido</h4>
+                    <p className="text-xs text-amber-700 leading-relaxed">
+                      El aumento en los costos de insumos ha reducido el margen de este presupuesto. 
+                      El precio para el cliente es de <span className="font-bold">{fmtPrice(grandTotal)}</span>, 
+                      pero si se cotizara hoy sería de <span className="font-bold">{fmtPrice(marketGrandTotal)}</span>.
+                    </p>
+                    <div className="flex gap-4 mt-2">
+                      <div className="text-[10px] uppercase font-bold text-amber-500">
+                        Margen Actual: <span className="text-red-600">{(currentMargin * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="text-[10px] uppercase font-bold text-amber-500">
+                        Perdiendo: <span className="text-red-600">{fmtPrice(lostRevenue)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Menu Selection */}
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -625,7 +876,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                          <div key={recipe.id} className="flex justify-between items-center p-2 hover:bg-slate-50 border rounded cursor-pointer" onClick={() => handleAddRecipe(recipe.id)}>
                             <div>
                               <div className="font-medium">{recipe.name}</div>
-                              <div className="text-xs text-slate-500">${recipe.price}</div>
+                              <div className="text-xs text-slate-500">{fmtPrice(recipe.price)}</div>
                             </div>
                             <Button size="sm" variant="ghost"><Plus className="w-4 h-4"/></Button>
                          </div>
@@ -638,44 +889,80 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
               {/* Menu Items Table */}
               <div className="space-y-4">
                 {formData.selectedRecipes.map((item, idx) => (
-                  <div key={idx} className="bg-white flex items-center gap-4 p-4 border border-slate-100 rounded-xl shadow-sm">
-                    <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 bg-slate-100 flex items-center justify-center text-2xl">
-                      🍽️
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-slate-900 mb-0.5">
-                        {item.details?.name}
-                      </h4>
-                      <p className="text-sm text-slate-500 mb-2">{item.details?.description}</p>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="font-bold text-lg text-slate-900">
-                        ${fmtPrice(item.details?.price || 0)}
+                  <div key={idx} className="bg-white flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-4 p-3 sm:p-4 border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 group w-full overflow-hidden">
+                    {/* Left Section: Icon + Text */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {/* Icon */}
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl overflow-hidden flex-shrink-0 bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
+                        <Utensils className="w-5 h-5" />
                       </div>
-                      <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-full p-1">
+
+                      {/* Name & Description */}
+                      <div className="flex-1 min-w-0">
+                        <h4 
+                          className="font-bold text-sm sm:text-base text-slate-900 leading-snug truncate group-hover:text-emerald-600 transition-colors"
+                          title={item.details?.name}
+                        >
+                          {item.details?.name}
+                        </h4>
+                        {item.details?.description && (
+                          <p 
+                            className="hidden sm:block text-[10px] sm:text-[11px] text-slate-500 truncate font-medium italic opacity-60"
+                            title={item.details.description}
+                          >
+                            {item.details.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right Section: Price + Counter + Actions */}
+                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto pt-2 sm:pt-0">
+                      {/* Price Block */}
+                      <div className="flex flex-col items-end justify-center min-w-[75px] sm:min-w-[95px]">
+                        <div className="flex items-center gap-1 mb-0.5">
+                          {formData.status !== 'DRAFT' && (
+                            <Lock className="w-3 h-3 text-slate-400" />
+                          )}
+                          <span className="font-bold text-base sm:text-lg text-slate-900 tracking-tight">
+                            {fmtPrice((formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null) ? item.priceSnapshot : (item.details?.price || 0))}
+                          </span>
+                        </div>
+                        
+                        {formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null && Math.abs(item.priceSnapshot - (item.details?.price || 0)) > 0.01 && (
+                          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-tight">
+                            <TrendingUp className="w-2.5 h-2.5" />
+                            <span>Market: {fmtPrice(item.details?.price || 0)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quantity Controls */}
+                      <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50 border border-slate-200 rounded-xl p-0.5 sm:p-1">
                         <button 
                           onClick={() => updateRecipeQuantity(item.recipeId, -1)}
-                          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white hover:shadow-sm transition-all"
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center hover:bg-white hover:text-red-500 hover:shadow-sm transition-all text-slate-400"
                         >
-                          <Minus className="w-3.5 h-3.5 text-slate-600" />
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="w-8 text-center font-bold text-slate-900">
+                        <span className="w-6 sm:w-8 text-center font-bold text-slate-900 text-sm sm:text-base">
                           {item.quantity}
                         </span>
                         <button 
                           onClick={() => updateRecipeQuantity(item.recipeId, 1)}
-                          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white hover:shadow-sm transition-all"
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center hover:bg-white hover:text-emerald-600 hover:shadow-sm transition-all text-slate-400"
                         >
-                          <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                          <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      {/* Remove Button */}
+
+                      {/* Remove Action */}
                       <button 
                         onClick={() => handleRemoveRecipe(item.recipeId)}
-                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all"
                         title="Remove Item"
                       >
-                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        <Trash2 className="w-4 h-4 sm:w-5 h-5" />
                       </button>
                     </div>
                   </div>
@@ -689,44 +976,58 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           </div>
 
           {/* Right Side - Quote Preview */}
-          <div>
-            <div className="pb-6">
-            <Card className="border-slate-200 flex-shrink-0 mb-6">
+          <div className="print:w-full">
+            <div className="pb-6 print:pb-0">
+            <Card id="event-quote-preview" className="border-slate-200 flex-shrink-0 mb-6 bg-white print:m-0 print:border-none print:shadow-none">
               <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between quote-actions print:hidden">
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-bold text-slate-900">{t("preview")}</h3>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full">
+                    <Button 
+                      size="icon" 
+                      variant="outline" 
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleDownloadPDF}
+                    >
                        <Download className="w-4 h-4 text-slate-500" />
                     </Button>
-                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full">
+                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => window.print()}>
                        <Printer className="w-4 h-4 text-slate-500" />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                {/* Invoice Header */}
+              <CardContent className="print:p-0">
                 <div className="mb-6">
                   <div className="flex justify-between items-start mb-6">
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 bg-[#10b981] rounded flex items-center justify-center">
-                           <Utensils className="w-3.5 h-3.5 text-white" />
-                        </div>
-                        <span className="font-bold text-slate-900">CaterFlow</span>
+                      <div className="flex items-center gap-3 mb-2">
+                        {orgSettings.logoUrl ? (
+                          <img 
+                            src={orgSettings.logoUrl} 
+                            alt={orgSettings.name} 
+                            className="w-10 h-10 object-contain" 
+                            crossOrigin="anonymous"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+                             <Utensils className="w-5 h-5 text-white" />
+                          </div>
+                        )}
+                        <span className="font-extrabold text-xl text-slate-900 tracking-tight">{orgSettings.name || "CaterFlow"}</span>
                       </div>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        123 Culinary Ave, Suite 100<br />
-                        New York, NY 10012
-                      </p>
+                      {orgSettings.slogan && (
+                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                           {orgSettings.slogan}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
-                       <h4 className="text-2xl font-extrabold text-slate-900 tracking-tight uppercase">{t("quote_header")}</h4>
-                       <p className="text-xs font-bold text-slate-900 mt-1">#Q-2024-892</p>
-                       <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">{t("actions.issued")}: Oct 02, 2024</p>
+                       <h4 className="text-2xl font-black text-slate-900 tracking-tighter uppercase mb-0">{t("quote_header")}</h4>
+                       <p className="text-xs font-bold text-emerald-600 mt-0">#Q-{new Date().getFullYear()}-{formData.id.slice(0, 4).toUpperCase() || "NEW"}</p>
+                       <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">{t("actions.issued")}: {new Date().toLocaleDateString()}</p>
                     </div>
                   </div>
 
@@ -739,42 +1040,48 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                     </div>
                     <div className="text-right">
                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("event_date")}</div>
-                       <div className="font-bold text-sm text-slate-900">{new Date(formData.date).toLocaleDateString()}</div>
-                       <div className="text-xs text-slate-500">{formData.guests} {t("guest_count")}</div>
-                    </div>
+                        <div className="font-bold text-sm text-slate-900">{new Date(formData.date).toLocaleDateString()}</div>
+                        <div className="text-xs text-slate-500 font-medium">{formData.guests} {t("guest_count")}</div>
+                     </div>
                   </div>
                   
                   <Separator className="my-4" />
 
                   {/* Itemized List Header */}
-                  <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
-                     <span>{t("table.description")}</span>
-                     <div className="flex gap-4">
-                        <span className="w-8 text-center">{t("table.qty")}</span>
-                        <span className="w-12 text-right">{t("table.price")}</span>
-                        <span className="w-16 text-right">{t("table.amount")}</span>
-                     </div>
-                  </div>
+                   <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
+                      <span>{t("table.description")}</span>
+                      <div className="flex gap-4">
+                         <span className="w-8 text-center">{t("table.qty")}</span>
+                         <span className="w-16 text-right">{t("table.price")}</span>
+                         <span className="w-20 text-right">{t("table.amount")}</span>
+                      </div>
+                   </div>
 
                   {/* Items */}
                   <div className="space-y-3 mb-6 min-h-[100px]">
-                     {formData.selectedRecipes.map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm px-1">
-                           <div className="max-w-[140px]">
-                              <div className="font-bold text-slate-900 truncate">{item.details?.name}</div>
-                              <div className="text-xs text-slate-500 truncate">{item.details?.category || 'Item'}</div>
+                     {formData.selectedRecipes.map((item, i) => {
+                        const price = (formData.status !== 'DRAFT' && item.priceSnapshot !== undefined && item.priceSnapshot !== null)
+                          ? item.priceSnapshot
+                          : (item.details?.price || 0);
+
+                         return (
+                           <div key={i} className="flex justify-between items-start text-sm px-1 py-1">
+                              <div className="flex-1 pr-4">
+                                 <div className="font-bold text-slate-900 break-words leading-tight">{item.details?.name}</div>
+                                 <div className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">{item.details?.category || 'Item'}</div>
+                              </div>
+                              <div className="flex gap-4 shrink-0">
+                                 <span className="w-8 text-center text-slate-600 font-medium">{item.quantity}</span>
+                                 <span className="w-16 text-right text-slate-600 font-mono">
+                                   {fmtPrice(price)}
+                                 </span>
+                                 <span className="w-20 text-right font-bold text-slate-900 font-mono">
+                                   {fmtPrice(item.quantity * price)}
+                                 </span>
+                              </div>
                            </div>
-                           <div className="flex gap-4">
-                              <span className="w-8 text-center text-slate-600">{item.quantity}</span>
-                              <span className="w-12 text-right text-slate-600">
-                                ${fmtPrice(item.details?.price || 0)}
-                              </span>
-                              <span className="w-16 text-right font-bold text-slate-900">
-                                ${fmtPrice(item.quantity * (item.details?.price || 0))}
-                              </span>
-                           </div>
-                        </div>
-                     ))}
+                         );
+                     })}
                      {formData.selectedRecipes.length === 0 && (
                         <div className="text-center py-4 text-xs text-slate-400 italic">{t("no_items")}</div>
                      )}
@@ -787,27 +1094,31 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                     <div className="flex justify-between">
                       <span className="text-slate-500 text-xs font-medium">{t("financials.subtotal")}</span>
                       <span className="font-bold text-slate-900">
-                        ${fmtPrice(subtotal)}
+                        {fmtPrice(subtotal)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500 text-xs font-medium">{t("financials.service_fee")} (18%)</span>
+                      <span className="text-slate-500 text-xs font-medium">
+                        {t("financials.service_fee").split('(')[0].trim()} ({serviceFeeRatePct >= 1 ? serviceFeeRatePct : serviceFeeRatePct * 100}%)
+                      </span>
                       <span className="font-bold text-slate-900">
-                        ${fmtPrice(serviceFee)}
+                        {fmtPrice(serviceFee)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500 text-xs font-medium">{t("financials.tax")} (8.5%)</span>
+                      <span className="text-slate-500 text-xs font-medium">
+                        {t("financials.tax").split('(')[0].trim()} ({taxRatePct >= 1 ? taxRatePct : taxRatePct * 100}%)
+                      </span>
                       <span className="font-bold text-slate-900">
-                        ${fmtPrice(tax)}
+                        {fmtPrice(tax)}
                       </span>
                     </div>
                   </div>
 
                   <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-100">
                     <span className="text-sm font-bold text-slate-900">{t("financials.total")}</span>
-                    <span className="text-2xl font-extrabold text-[#10b981]">
-                      ${fmtPrice(grandTotal)}
+                    <span className="text-2xl font-extrabold text-[#10b981] print:text-3xl">
+                      {fmtPrice(grandTotal)}
                     </span>
                   </div>
 
@@ -815,7 +1126,7 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                   <Button 
                     disabled={isLoading} 
                     onClick={() => handleSave('SENT')} 
-                    className="w-full mt-6 bg-[#10b981] hover:bg-emerald-600 text-white font-bold h-11 shadow-sm"
+                    className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 shadow-md shadow-emerald-100 rounded-xl quote-send-btn transition-all active:scale-95 print:hidden"
                   >
                     {isLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : (
                       <>
@@ -824,7 +1135,18 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
                       </>
                     )}
                   </Button>
-                  <p className="text-[10px] text-center text-slate-400 mt-2 font-medium">{t("actions.last_saved")}</p>
+                  
+                  {/* Terms & Conditions Footer for PDF */}
+                  <div className="mt-8 pt-6 border-t border-slate-100 text-[10px] text-slate-400 leading-relaxed italic">
+                    <p className="text-center">
+                      Esta cotización tiene una validez de 15 días. Precios sujetos a cambio según disponibilidad de insumos.
+                    </p>
+                    <p className="text-center mt-1">
+                      © {new Date().getFullYear()} {orgSettings.name} • Generado por CaterFlow
+                    </p>
+                  </div>
+                  
+                  <p className="text-[10px] text-center text-slate-400 mt-4 font-medium quote-send-btn tracking-wide print:hidden">{t("actions.last_saved")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -833,6 +1155,132 @@ export default function EventsClient({ initialData, orgId }: EventsClientProps) 
           </div>
         </div>
       </div>
+      {/* Shopping List Modal */}
+      <Dialog open={showShoppingList} onOpenChange={setShowShoppingList}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-blue-600" />
+              Shopping List
+            </DialogTitle>
+          </DialogHeader>
+          
+          {shoppingListData && (
+            <div className="space-y-6">
+               <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg">
+                  <div>
+                    <h3 className="font-bold text-lg">{shoppingListData.eventName}</h3>
+                    <div className="text-sm text-slate-500">{new Date(shoppingListData.eventDate).toLocaleDateString()} • {shoppingListData.guestCount} {t("guest_count")}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-500 uppercase font-bold">Total Est. Cost</div>
+                    <div className="text-2xl font-bold text-emerald-600">
+                      {fmtPrice(shoppingListData.totalEstimatedCost)}
+                    </div>
+                  </div>
+               </div>
+
+               <div className="border rounded-lg overflow-hidden">
+                 <table className="w-full text-sm">
+                   <thead className="bg-slate-100 text-slate-600 font-semibold border-b">
+                     <tr>
+                       <th className="text-left p-3">Ingredient</th>
+                       <th className="text-right p-3">Needed</th>
+                       <th className="text-right p-3">In Stock</th>
+                       <th className="text-right p-3 bg-blue-50 text-blue-700">To Buy</th>
+                       <th className="text-right p-3">Est. Cost</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y">
+                     {shoppingListData.items.map((item: any, i: number) => (
+                       <tr key={i} className="hover:bg-slate-50">
+                         <td className="p-3 font-medium text-slate-900">{item.name}</td>
+                         <td className="p-3 text-right">{item.totalNeeded} {item.unit}</td>
+                         <td className="p-3 text-right text-slate-500">{item.currentStock} {item.unit}</td>
+                         <td className={`p-3 text-right font-bold ${item.toBuy > 0 ? 'text-blue-600 bg-blue-50' : 'text-slate-400'}`}>
+                           {item.toBuy > 0 ? item.toBuy : '✓ Stock'} {item.toBuy > 0 && item.unit}
+                         </td>
+                         <td className="p-3 text-right text-slate-600">
+                           {item.estimatedCost > 0 
+                              ? fmtPrice(item.estimatedCost)
+                             : '-'
+                           }
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+               
+               <div className="flex justify-end gap-2 print:hidden">
+                  <Button variant="outline" onClick={() => window.print()}>
+                     <Printer className="w-4 h-4 mr-2" />
+                     Print
+                  </Button>
+                  <Button onClick={() => setShowShoppingList(false)}>Close</Button>
+               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Kitchen Sheet Modal */}
+      <Dialog open={showKitchenSheet} onOpenChange={setShowKitchenSheet}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ChefHat className="w-5 h-5 text-orange-600" />
+              Kitchen Prep Sheet
+            </DialogTitle>
+          </DialogHeader>
+          
+          {kitchenSheetData && (
+            <div className="space-y-6">
+               <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
+                  <h3 className="font-bold text-xl text-orange-900">{kitchenSheetData.eventName}</h3>
+                  <div className="text-sm text-orange-700 mt-1">
+                    Date: {new Date(kitchenSheetData.eventDate).toLocaleDateString()}
+                    <span className="mx-2">•</span>
+                    Prep for: <span className="font-bold">{kitchenSheetData.guestCount} Guests</span>
+                  </div>
+               </div>
+
+               <div className="border rounded-lg overflow-hidden">
+                 <table className="w-full text-sm">
+                   <thead className="bg-slate-100 text-slate-600 font-semibold border-b">
+                     <tr>
+                       <th className="text-left p-3">Ingredient</th>
+                       <th className="text-right p-3">Total Quantity</th>
+                       <th className="text-left p-3 w-20">Unit</th>
+                       <th className="text-center p-3 w-20">Check</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y">
+                     {kitchenSheetData.items.map((item: any, i: number) => (
+                       <tr key={i} className="hover:bg-slate-50">
+                         <td className="p-3 font-medium text-slate-900 text-base">{item.name}</td>
+                         <td className="p-3 text-right font-bold font-mono text-lg">{item.totalNeeded}</td>
+                         <td className="p-3 text-slate-500">{item.unit}</td>
+                         <td className="p-3 text-center">
+                           <div className="w-6 h-6 border-2 border-slate-300 rounded mx-auto"></div>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+
+               <div className="flex justify-end gap-2 print:hidden">
+                  <Button variant="outline" onClick={() => window.print()}>
+                     <Printer className="w-4 h-4 mr-2" />
+                     Print
+                  </Button>
+                  <Button onClick={() => setShowKitchenSheet(false)}>Close</Button>
+               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

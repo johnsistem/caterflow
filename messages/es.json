@@ -219,8 +219,8 @@
     },
     "financials": {
       "subtotal": "Subtotal",
-      "service_fee": "Cargo por Servicio (18%)",
-      "tax": "Impuesto (8.5%)",
+      "service_fee": "Cargo por Servicio",
+      "tax": "Impuesto",
       "total": "Gran Total"
     },
     "actions": {
@@ -348,5 +348,35 @@
       "submit": "Enviar Enlace de Restablecimiento",
       "back": "Volver al Inicio de Sesión"
     }
+  },
+  "Settings": {
+    "title": "Ajustes de la Empresa",
+    "description": "Configura la identidad y reglas financieras de tu negocio.",
+    "sections": {
+      "profile": {
+        "title": "Perfil de Empresa",
+        "org_name": "Nombre de la Organización",
+        "slogan": "Eslogan de la Empresa",
+        "logo": "Logo del Negocio",
+        "logo_hint": "Usado en presupuestos PDF"
+      },
+      "localization": {
+        "title": "Localización",
+        "language": "Idioma de la Interfaz",
+        "currency": "Moneda de Operación",
+        "languages": {
+          "en": "English",
+          "es": "Español"
+        }
+      },
+      "defaults": {
+        "title": "Configuración de Cotización (Defaults)",
+        "tax": "Impuesto (IVA) %",
+        "service_fee": "Cargo por Servicio %",
+        "hint": "Estos valores se aplicarán automáticamente a todos los eventos nuevos."
+      }
+    },
+    "save_button": "Guardar Cambios",
+    "success_message": "Ajustes actualizados correctamente"
   }
 }

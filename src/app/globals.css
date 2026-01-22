@@ -125,3 +125,36 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  /* Ocultar elementos innecesarios */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Forzar colores de fondo y bordes */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Reset layout para papel */
+  body {
+    background: white !important;
+  }
+
+  /* Asegurar que el el elemento de la cotización ocupe el ancho correcto */
+  #event-quote-preview {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Configuración de página estándar */
+  @page {
+    margin: 1.5cm;
+    size: auto;
+  }
+}

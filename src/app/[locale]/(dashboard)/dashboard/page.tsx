@@ -23,6 +23,7 @@ import {
 import { getTranslations } from "next-intl/server";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+import { formatCurrency } from "@/lib/utils";
 
 export default async function DashboardPage() {
   const t = await getTranslations("Dashboard");
@@ -45,7 +46,14 @@ export default async function DashboardPage() {
     return <div>Error loading organization data.</div>;
   }
 
+  const { data: orgData } = await supabase
+    .from("Organization")
+    .select("currency")
+    .eq("id", userData.organizationId)
+    .single();
+
   const orgId = userData.organizationId;
+  const orgCurrency = orgData?.currency || "USD";
 
   // 2. Fetch Stats Data
   // Projected Revenue (Confirmed events)
@@ -58,11 +66,6 @@ export default async function DashboardPage() {
   const totalRevenue = revenueData?.reduce((acc, curr) => acc + (curr.totalPrice || 0), 0) || 0;
 
   // Food Cost % (Avg Margin from Recipes)
-  // We'll use margin from recipes to approximate food cost perspective. 
-  // If margin is 30%, cost is 70%? or just show Average Margin as requested in food cost context often inverse.
-  // Prompt says: "Promedio de totalCost / price". But we populated 'margin'. 
-  // Let's use the average 'margin' from Recipe table as a proxy for financial health for now, or fetch recipes and calculate.
-  // Let's fetch margin.
   const { data: marginData } = await supabase
     .from("Recipe")
     .select("margin")
@@ -93,8 +96,8 @@ export default async function DashboardPage() {
     .order("createdAt", { ascending: false })
     .limit(5);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+  const formatPrice = (amount: number) => {
+    return formatCurrency(amount, orgCurrency);
   };
 
   const quotes = recentEvents?.map(event => {
@@ -108,15 +111,14 @@ export default async function DashboardPage() {
       id: event.id.substring(0, 8).toUpperCase(), // Short ID
       client: (event.Client as any)?.name || "Unknown Client",
       date: new Date(event.date).toLocaleDateString(),
-      headcount: "-", // We didn't strictly populate headcount in Event, mostly in EventRecipe servings.
-      total: formatCurrency(event.totalPrice),
+      headcount: "-", 
+      total: formatPrice(event.totalPrice),
       margin: `${eventMargin.toFixed(0)}%`,
       status: event.status
     };
   }) || [];
 
   // 4. Market Watch (Price History)
-  // We need to route through Ingredient to filter by Organization
   const { data: priceHistory } = await supabase
     .from("PriceHistory")
     .select(`
@@ -166,7 +168,7 @@ export default async function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-slate-900 dark:text-white">{formatCurrency(totalRevenue)}</div>
+            <div className="text-3xl font-bold text-slate-900 dark:text-white">{formatPrice(totalRevenue)}</div>
             <p className="text-xs text-emerald-600 flex items-center mt-1">
               <TrendingUp className="w-3 h-3 mr-1" />
               Projected
@@ -213,8 +215,6 @@ export default async function DashboardPage() {
                 <CardTitle className="text-xl">{t("quotes.title")}</CardTitle>
                 <Button className="bg-emerald-500 hover:bg-emerald-600">+ {t("quotes.new_button")}</Button>
               </div>
-              {/* Client-side filtering UI removed/simplified for Server Component. 
-                  To re-add, this part should be a Client Component. */}
               <div className="flex gap-3 mt-4 opacity-50 pointer-events-none" title="Filtering disabled in server view">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />

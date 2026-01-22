@@ -24,9 +24,10 @@ export default async function RecipesPage() {
   }
 
   // 3. Fetch Data
-  const [ingredients, recipes] = await Promise.all([
+  const [ingredients, recipes, orgSettings] = await Promise.all([
     fetchIngredients(userData.organizationId),
-    getRecipes(userData.organizationId)
+    getRecipes(userData.organizationId),
+    supabase.from("Organization").select("currency").eq("id", userData.organizationId).single().then(r => r.data)
   ]);
 
   return (
@@ -34,6 +35,7 @@ export default async function RecipesPage() {
       ingredientLibrary={ingredients || []} 
       initialRecipes={recipes || []}
       orgId={userData.organizationId} 
+      orgCurrency={orgSettings?.currency || "USD"}
     />
   );
 }

@@ -41,7 +41,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 flex flex-col h-screen fixed left-0 top-0 bg-[#1e293b] border-r border-[#334155] z-50">
+    <aside className="w-64 flex flex-col h-screen fixed left-0 top-0 bg-[#1e293b] border-r border-[#334155] z-50 print:hidden">
       <div className="p-6">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-[#10b981] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -90,10 +90,12 @@ export function Sidebar() {
             {locale}
           </span>
         </button>
-        <button className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all text-sm font-medium group">
-          <Settings className="w-5 h-5 text-slate-500 group-hover:text-white" />
-          {t("settings")}
-        </button>
+        <Link href="/settings">
+          <button className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all text-sm font-medium group">
+            <Settings className="w-5 h-5 text-slate-500 group-hover:text-white" />
+            {t("settings")}
+          </button>
+        </Link>
         <button 
           onClick={() => signOut(locale)}
           className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all text-sm font-medium group"

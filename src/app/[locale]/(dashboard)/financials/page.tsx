@@ -1,60 +1,106 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Area, AreaChart, Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { DollarSign, TrendingUp, Percent, Calendar } from "lucide-react";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { DollarSign, TrendingUp, Percent, Calendar, Filter, Lightbulb, Sparkles, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
-
-const revenueData = [
-  { date: "Oct 1", revenue: 85000, profit: 28000 },
-  { date: "Oct 5", revenue: 92000, profit: 32000 },
-  { date: "Oct 10", revenue: 88000, profit: 30000 },
-  { date: "Oct 15", revenue: 95000, profit: 35000 },
-  { date: "Oct 20", revenue: 105000, profit: 42000 },
-  { date: "Oct 25", revenue: 112000, profit: 45000 },
-  { date: "Oct 31", revenue: 124500, profit: 52000 }
-];
-
-const topRecipes = [
-  { name: "Truffle Risotto", margin: 42, value: 42 },
-  { name: "Seared Salmon", margin: 38, value: 38 },
-  { name: "Beef Wellington", margin: 35, value: 35 },
-  { name: "Lobster Thermidor", margin: 31, value: 31 },
-  { name: "Duck Confit", margin: 28, value: 28 }
-];
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getFinancialData, FinancialPeriod } from "./actions";
 
 const chartConfig = {
   revenue: {
     label: "Revenue",
-    color: "hsl(var(--chart-1))",
+    color: "#6366f1",
   },
   profit: {
     label: "Profit",
-    color: "hsl(var(--chart-2))",
+    color: "#22c55e",
   },
 };
 
 export default function FinancialsPage() {
   const t = useTranslations("Financials");
+  const [period, setPeriod] = useState<FinancialPeriod>("this_year");
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const result = await getFinancialData(period);
+        setData(result);
+      } catch (error) {
+        console.error("Failed to fetch financial data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [period]);
+
+  const formatCurrency = (value: number) => {
+    const currency = data?.currency || "USD";
+    return new Intl.NumberFormat(currency === "NIO" ? "es-NI" : "en-US", { 
+      style: "currency", 
+      currency,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+
+  const formatPercent = (value: number) => {
+    return new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 1 }).format(value / 100);
+  };
+
+  if (loading && !data) {
+    return <div className="p-8 text-white">Loading financials...</div>;
+  }
+
+  if (data && (data as any).error) {
+    return (
+      <div className="p-8 text-white bg-red-900/20 border border-red-900 rounded-lg m-8">
+        <h2 className="text-xl font-bold mb-2">Error loading data</h2>
+        <p className="text-slate-300">{(data as any).error}</p>
+        <Button className="mt-4" onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 bg-[#0f1419] min-h-screen p-8 -m-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-white tracking-tight">
             {t("title")}
           </h1>
           <p className="text-slate-400 text-sm mt-1">
             {t("description")}
           </p>
         </div>
-        <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800">
-          <Calendar className="w-4 h-4 mr-2" />
-          Oct 1 - Oct 31, 2023
-        </Button>
+        
+        <div className="flex items-center gap-2">
+           <Select value={period} onValueChange={(val) => setPeriod(val as FinancialPeriod)}>
+            <SelectTrigger className="w-[180px] border-slate-700 bg-[#1a2029] text-white">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#1a2029] border-slate-700 text-white">
+              <SelectItem value="this_month">This Month</SelectItem>
+              <SelectItem value="last_quarter">Last Quarter</SelectItem>
+              <SelectItem value="this_year">This Year</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 pointer-events-none">
+            <Calendar className="w-4 h-4 mr-2" />
+            {data?.periodLabel}
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -66,11 +112,8 @@ export default function FinancialsPage() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-3xl font-bold text-white">$124,500</div>
-                <p className="text-xs text-emerald-400 flex items-center mt-1">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  +24.5% {t("vs_last_month")}
-                </p>
+                <div className="text-3xl font-bold text-white">{data ? formatCurrency(data.kpi.revenue) : "$0.00"}</div>
+                {/* Trend logic would require previous period comparison, skipping for simplify unless requested specifically */}
               </div>
               <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                 <DollarSign className="w-6 h-6 text-emerald-500" />
@@ -86,11 +129,7 @@ export default function FinancialsPage() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-3xl font-bold text-white">$42,150</div>
-                <p className="text-xs text-emerald-400 flex items-center mt-1">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  +18.2% {t("vs_last_month")}
-                </p>
+                <div className="text-3xl font-bold text-white">{data ? formatCurrency(data.kpi.profit) : "$0.00"}</div>
               </div>
               <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-blue-500" />
@@ -106,11 +145,7 @@ export default function FinancialsPage() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-3xl font-bold text-white">33.8%</div>
-                <p className="text-xs text-emerald-400 flex items-center mt-1">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  +5.2% {t("vs_last_month")}
-                </p>
+                <div className="text-3xl font-bold text-white">{data ? data.kpi.margin.toFixed(1) : "0.0"}%</div>
               </div>
               <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
                 <Percent className="w-6 h-6 text-purple-500" />
@@ -120,22 +155,112 @@ export default function FinancialsPage() {
         </Card>
       </div>
 
+      {/* Intelligent Insights */}
+      {data?.insights && (
+        <Card className="bg-gradient-to-r from-indigo-500/10 via-slate-800/50 to-emerald-500/10 border-slate-700/50 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Sparkles className="w-24 h-24 text-white" />
+          </div>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+              </div>
+              <CardTitle className="text-sm font-semibold text-white tracking-wide uppercase">Resumen Inteligente</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Margin Trend */}
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                <div className={`mt-0.5 w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-indigo-500/20`}>
+                   <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-200 leading-relaxed font-medium">
+                    {data.insights.marginTrend.text}
+                  </p>
+                </div>
+              </div>
+
+              {/* Current Month Projection */}
+              {data.insights.projection && (
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <div className="mt-0.5 w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-emerald-50 leading-relaxed font-semibold">
+                       {data.insights.projection.text}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Quarterly Projection */}
+              {data.insights.quarterly && (
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <div className="mt-0.5 w-6 h-6 rounded-md bg-blue-500/20 flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-50 leading-relaxed font-medium">
+                       {data.insights.quarterly.text}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Top Recipe Alert */}
+              {data.insights.topRecipeAlert && (
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/40 border border-slate-800/50">
+                  <div className="mt-0.5 w-6 h-6 rounded-md bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-200 leading-relaxed font-medium">
+                      {data.insights.topRecipeAlert.text}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 flex items-center gap-2 text-[12px] font-medium text-slate-400 italic">
+               <span className="text-indigo-400">⚡ Sugerencia:</span> {data.insights.suggestion}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Revenue vs Profit Chart */}
       <Card className="bg-[#1a2029] border-slate-800">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-white text-xl">{t("revenue_vs_profit.title")}</CardTitle>
-              <CardDescription className="text-slate-400">{t("revenue_vs_profit.description")}</CardDescription>
+              <CardTitle className="text-white text-xl font-semibold tracking-tight">{t("revenue_vs_profit.title")}</CardTitle>
+              <CardDescription className="text-slate-500 text-sm">{t("revenue_vs_profit.description")}</CardDescription>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-slate-500"></div>
-                <span className="text-sm text-slate-400">{t("revenue")}</span>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                  <span className="text-[12px] text-slate-400 font-medium tracking-tight whitespace-nowrap">{t("revenue")}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-[12px] text-slate-400 font-medium tracking-tight whitespace-nowrap">{t("profit")}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                <span className="text-sm text-slate-400">{t("profit")}</span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-0.5 bg-slate-500"></div>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Histórico</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-0.5 bg-slate-500 border-b border-dashed border-slate-400"></div>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Proyectado</span>
+                </div>
               </div>
             </div>
           </div>
@@ -143,45 +268,74 @@ export default function FinancialsPage() {
         <CardContent>
           <div className="h-[300px]">
             <ChartContainer config={chartConfig} className="h-full w-full">
-              <AreaChart data={revenueData}>
+              <AreaChart data={data?.chartData || []}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#64748b" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#64748b" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.01}/>
                   </linearGradient>
                   <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.01}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#1e293b" />
+                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#334155" opacity={0.2} />
                 <XAxis 
                   dataKey="date" 
                   tickLine={false} 
                   axisLine={false} 
-                  tick={{ fill: '#64748b', fontSize: 12 }}
-                  tickMargin={10}
+                  tick={{ fill: '#475569', fontSize: 11 }}
+                  tickMargin={12}
                 />
                 <YAxis 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tickFormatter={(value) => `$${value / 1000}k`}
-                  tick={{ fill: '#64748b', fontSize: 12 }}
+                   tickLine={false} 
+                   axisLine={false} 
+                   tickFormatter={(value) => `$${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                   tick={{ fill: '#475569', fontSize: 11 }}
+                   width={40}
                 />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Area 
                   type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#64748b" 
+                  dataKey="revenue_hist"
+                  stroke="#6366f1" 
                   strokeWidth={2}
                   fill="url(#colorRevenue)"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: "#6366f1" }}
+                  connectNulls={true}
                 />
                 <Area 
                   type="monotone" 
-                  dataKey="profit" 
-                  stroke="#10b981" 
+                  dataKey="revenue_proj"
+                  stroke="#6366f1" 
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  fill="none"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: "#6366f1" }}
+                  connectNulls={true}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="profit_hist"
+                  stroke="#22c55e" 
                   strokeWidth={2}
                   fill="url(#colorProfit)"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: "#22c55e" }}
+                  connectNulls={true}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="profit_proj"
+                  stroke="#22c55e" 
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  fill="none"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: "#22c55e" }}
+                  connectNulls={true}
                 />
               </AreaChart>
             </ChartContainer>
@@ -196,50 +350,78 @@ export default function FinancialsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-white">{t("top_recipes.title")}</CardTitle>
-              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                •••
-              </Button>
             </div>
             <CardDescription className="text-slate-400">{t("top_recipes.description")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {topRecipes.map((recipe, index) => (
+              {data?.topRecipes.map((recipe: any, index: number) => (
                 <div key={index} className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-300">{recipe.name}</span>
-                    <span className="font-semibold text-emerald-400">{recipe.margin}%</span>
+                    <span className="font-semibold text-emerald-400">{recipe.margin.toFixed(1)}%</span>
                   </div>
-                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-2 bg-[#1a2029] rounded-full overflow-hidden border border-slate-800">
                     <div 
-                      className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
-                      style={{ width: `${recipe.value}%` }}
+                      className="h-full bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                      style={{ width: `${Math.min(Math.max(recipe.margin, 2), 100)}%` }}
                     />
                   </div>
                 </div>
               ))}
+              {(!data?.topRecipes || data.topRecipes.length === 0) && (
+                <div className="text-slate-500 text-center py-4">No data available</div>
+              )}
             </div>
           </CardContent>
         </Card>
 
         {/* Monthly Event Volume */}
+         {/* Let's make it static or remove if no logic supplied. I'll keep it static for layout stability unless requested. */}
         <Card className="bg-[#1a2029] border-slate-800">
           <CardHeader>
-            <CardTitle className="text-white">{t("event_volume.title")}</CardTitle>
-            <CardDescription className="text-slate-400">{t("event_volume.description")}</CardDescription>
+            <CardTitle className="text-white text-xl font-semibold tracking-tight">{t("event_volume.title")}</CardTitle>
+            <CardDescription className="text-slate-500 text-sm">{t("event_volume.description")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[240px] flex items-end justify-center">
-              <div className="w-full grid grid-cols-7 gap-2 h-full items-end">
-                {[65, 72, 58, 81, 69, 75, 0].map((height, index) => (
-                  <div key={index} className="flex flex-col items-center justify-end h-full">
-                    <div 
-                      className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t-lg transition-all hover:opacity-80"
-                      style={{ height: `${height}%` }}
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="h-[240px] w-full">
+              <ChartContainer config={{ eventCount: { label: "Events", color: "#3b82f6" } }} className="h-full w-full">
+                <BarChart data={data?.chartData || []}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                  <XAxis 
+                    dataKey="date" 
+                    tickLine={false} 
+                    axisLine={false} 
+                    tick={{ fill: '#475569', fontSize: 11 }}
+                    tickMargin={8}
+                  />
+                  <YAxis 
+                    tickLine={false} 
+                    axisLine={false} 
+                    tick={{ fill: '#475569', fontSize: 11 }}
+                    width={30}
+                    allowDecimals={false}
+                    domain={[0, 'dataMax']}
+                  />
+                  <ChartTooltip 
+                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                    content={<ChartTooltipContent />} 
+                  />
+                  <Bar 
+                    dataKey="eventCount" 
+                    fill="#6366f1" 
+                    radius={[6, 6, 0, 0]}
+                    barSize={48}
+                  >
+                    {data?.chartData.map((entry: any, index: number) => (
+                      <rect 
+                        key={`cell-${index}`} 
+                        fill={entry.isProjected ? "#6366f188" : "#6366f1"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
             </div>
           </CardContent>
         </Card>
