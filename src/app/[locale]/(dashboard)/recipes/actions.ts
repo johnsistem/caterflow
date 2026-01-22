@@ -25,7 +25,7 @@ export async function getRecipes(orgId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("Recipe")
-    .select("id, name, category, totalCost, margin, price, description")
+    .select("id, name, category, totalCost, margin, price, description, yield")
     .eq("organizationId", orgId)
     .order("createdAt", { ascending: false });
 
@@ -101,6 +101,7 @@ export async function saveRecipe(data: {
         name: safeData.name,
         description: safeData.description,
         category: safeData.category || "Main",
+        yield: safeData.servings || 1,
         margin: safeData.margin,
         totalCost: safeData.totalCost,
         price: safeData.price
@@ -144,6 +145,7 @@ export async function saveRecipe(data: {
         name: safeData.name,
         description: safeData.description,
         category: safeData.category || "Main",
+        yield: safeData.servings || 1,
         margin: safeData.margin,
         totalCost: safeData.totalCost,
         price: safeData.price

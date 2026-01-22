@@ -50,6 +50,7 @@ type RecipeSummary = {
   margin: number;
   price: number;
   description: string;
+  yield: number;
 };
 
 interface RecipesClientProps {
@@ -74,7 +75,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
   // Recipe Builder State
   const [recipeName, setRecipeName] = useState("New Recipe");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("main-course");
+  const [category, setCategory] = useState("main");
   const [yieldPortions, setYieldPortions] = useState(1);
   const [selectedIngredients, setSelectedIngredients] = useState<RecipeIngredient[]>([]);
   const [marginPercent, setMarginPercent] = useState(30);
@@ -100,7 +101,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
     // Reset state
     setRecipeName("New Recipe");
     setDescription("");
-    setCategory("main-course");
+    setCategory("main");
     setYieldPortions(1);
     setSelectedIngredients([]);
     setMarginPercent(30);
@@ -121,12 +122,9 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
 
       setRecipeName(details.name);
       setDescription(details.description || "");
-      setCategory(details.category || "main-course");
+      setCategory(details.category || "main");
       setMarginPercent(details.margin);
-      // Determine yield if not stored? 
-      // If we assume price was stored correctly, we might back-calculate, but simplest is default 1 for now
-      // as discussed in plan.
-      setYieldPortions(1); 
+      setYieldPortions(details.yield || 1); 
       setSelectedIngredients(details.ingredients || []);
       
       setEditingId(recipe.id);
@@ -173,6 +171,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
       orgId,
       name: recipeName,
       description: description || `A delicious ${category}`,
+      category: category,
       servings: yieldPortions,
       totalCost: totalCost,
       price: sellPrice,
@@ -412,7 +411,7 @@ export default function RecipesClient({ ingredientLibrary, initialRecipes, orgId
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="main-course">{t("categories.main")}</SelectItem>
+                        <SelectItem value="main">{t("categories.main")}</SelectItem>
                         <SelectItem value="appetizer">{t("categories.appetizer")}</SelectItem>
                         <SelectItem value="dessert">{t("categories.dessert")}</SelectItem>
                         <SelectItem value="beverage">{t("categories.beverage")}</SelectItem>

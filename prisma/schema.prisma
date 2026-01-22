@@ -54,10 +54,11 @@ model Recipe {
   id             String           @id @default(uuid())
   name           String
   description    String?
-  category       String?          @default("Main") // Added field
-  margin         Float            @default(0.3) // 30% default
-  totalCost      Float            @default(0)   // Calculated
-  price          Float            @default(0)   // Calculated based on margin
+  category       String?          @default("Main")
+  yield          Int              @default(1)
+  margin         Float            @default(0.3)
+  totalCost      Float            @default(0)
+  price          Float            @default(0)
   organizationId String
   organization   Organization     @relation(fields: [organizationId], references: [id])
   ingredients    RecipeIngredient[]
